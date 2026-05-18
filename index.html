@@ -1304,7 +1304,17 @@ function renderDashboard() {
       r.orderByDate = orderByDate;
       const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
       r.daysUntilOrderBy = daysUntilOrderBy;
-      if (daysUntilOrderBy <= 0) r.status = 'red';
+      if (daysUntilOrderBy < 0) r.status = 'red';
+      else if (daysUntilOrderBy <= 14) r.status = 'yellow';
+      else r.status = 'green';
+    } else if (r.stockoutDate) {
+      const stockoutD = new Date(r.stockoutDate);
+      const orderByDate = new Date(stockoutD);
+      orderByDate.setDate(orderByDate.getDate() - leadDays);
+      r.orderByDate = orderByDate;
+      const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
+      r.daysUntilOrderBy = daysUntilOrderBy;
+      if (daysUntilOrderBy < 0) r.status = 'red';
       else if (daysUntilOrderBy <= 14) r.status = 'yellow';
       else r.status = 'green';
     } else {
@@ -1330,12 +1340,13 @@ function renderDashboard() {
     const isRow = supplierByItem[r.id];
     const supRow = isRow ? supplierById[isRow.supplier_id] : null;
     const leadDays = isRow?.lead_time_override || supRow?.lead_time_days || 30;
-    if (r.firstShortageWeek) {
-      const shortageDate = new Date(r.firstShortageWeek);
+    const refWeek = r.firstShortageWeek || r.stockoutDate;
+    if (refWeek) {
+      const shortageDate = new Date(refWeek);
       const orderByDate = new Date(shortageDate);
       orderByDate.setDate(orderByDate.getDate() - leadDays);
       const days = Math.round((orderByDate - today) / 86400000);
-      if (days <= 0) return 'red';
+      if (days < 0) return 'red';
       if (days <= 14) return 'yellow';
     }
     return 'green';
@@ -1370,10 +1381,14 @@ function renderDashboard() {
     let stockoutCell;
     if (r.stockoutDate) {
       const stockoutD = new Date(r.stockoutDate);
-      const weeksUntil = Math.round((stockoutD - today) / 604800000);
-      const color = weeksUntil <= 2 ? 'var(--red)' : weeksUntil <= 6 ? 'var(--yellow)' : 'var(--text2)';
-      stockoutCell = `<div style="font-weight:600;color:${color}">${stockoutD.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
-        <div style="font-size:10px;color:${color};font-family:var(--font-mono)">${weeksUntil <= 0 ? 'THIS WEEK' : `in ${weeksUntil}w`}</div>`;
+      const weeksUntilStockout = Math.round((stockoutD - today) / 604800000);
+      // Color based on order-by date (stockout - lead time) vs today
+      const color = r.status === 'red' ? 'var(--red)' : r.status === 'yellow' ? 'var(--yellow)' : 'var(--green)';
+      const orderByLabel = r.orderByDate
+        ? `Order by ${r.orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+        : '';
+      stockoutCell = `<div style="font-weight:600;color:${color}">${stockoutD.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</div>
+        <div style="font-size:10px;color:${color};font-family:var(--font-mono)">${weeksUntilStockout <= 0 ? 'THIS WEEK' : `in ${weeksUntilStockout}w`}${orderByLabel ? ' · ' + orderByLabel : ''}</div>`;
     } else {
       stockoutCell = `<span style="color:var(--text3);font-size:12px">No stockout forecast</span>`;
     }
