@@ -590,6 +590,9 @@ select.form-input option { background: var(--surface2); }
         <span class="icon">◇</span> Forecast
       </div>
       <div class="nav-section">Data</div>
+      <div class="nav-item" onclick="showScreen('pos')" id="nav-pos">
+        <span class="icon">◎</span> Open POs
+      </div>
       <div class="nav-item" onclick="showScreen('uploads')" id="nav-uploads">
         <span class="icon">↑</span> Upload Center
       </div>
@@ -863,6 +866,124 @@ select.form-input option { background: var(--surface2); }
         </div>
       </div>
 
+      <!-- OPEN POs -->
+      <div class="screen" id="screen-pos">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Open Purchase Orders</div>
+              <div class="card-subtitle">All inbound stock — drives projected balance and coverage calculations</div>
+            </div>
+            <div class="flex gap-8">
+              <select class="form-input" style="width:160px;padding:6px 10px" id="poFilterStatus" onchange="renderPOs()">
+                <option value="">All Status</option>
+                <option value="OPEN">Open</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="openAddPOModal()">+ Add PO Line</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>PO Number</th>
+                  <th>Component</th>
+                  <th>Supplier</th>
+                  <th>Qty Ordered</th>
+                  <th>Qty Received</th>
+                  <th>Qty Outstanding</th>
+                  <th>Order Date</th>
+                  <th>Expected Receipt</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="posBody">
+                <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">Loading purchase orders...</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADD/EDIT PO MODAL -->
+      <div id="poModal" style="display:none;position:fixed;inset:0;background:rgba(6,14,26,0.85);z-index:500;display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:28px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div style="font-family:var(--font-display);font-size:16px;font-weight:700" id="poModalTitle">Add PO Line</div>
+            <button onclick="closePOModal()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;line-height:1">×</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">PO Number *</label>
+              <input type="text" class="form-input" id="po_number" placeholder="e.g. PW2605A5B">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-input" id="po_status">
+                <option value="OPEN">Open</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Component *</label>
+            <select class="form-input" id="po_item_id">
+              <option value="">— Select component —</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Supplier</label>
+            <select class="form-input" id="po_supplier_id">
+              <option value="">— Select supplier —</option>
+            </select>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Qty Ordered *</label>
+              <input type="number" class="form-input" id="po_qty_ordered" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Qty Received</label>
+              <input type="number" class="form-input" id="po_qty_received" placeholder="0" min="0" value="0">
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Order Date</label>
+              <input type="date" class="form-input" id="po_order_date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Expected Receipt Date *</label>
+              <input type="date" class="form-input" id="po_receipt_date">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Unit Cost</label>
+            <input type="number" class="form-input" id="po_unit_cost" placeholder="0.00" min="0" step="0.01">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <input type="text" class="form-input" id="po_notes" placeholder="Optional notes">
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+            <button class="btn btn-ghost" onclick="closePOModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="savePOLine()" id="poSaveBtn">Save PO Line</button>
+          </div>
+        </div>
+      </div>
+
       <!-- COMPONENTS MASTER -->
       <div class="screen" id="screen-components">
         <div class="card mb-16">
@@ -916,13 +1037,14 @@ let state = {
   items: [],
   suppliers: [],
   itemSuppliers: [],
-  inventory: [],        // latest_inventory view
-  netRequirements: [],  // v_net_requirements view
-  recommendations: [],  // v_purchasing_recommendations view
-  forecastData: [],     // monthly_forecast table
-  skuMix: {},           // calculated from install order history
-  skuMixOverrides: {},  // user overrides
-  componentsAll: [],    // all components with enriched data
+  inventory: [],
+  netRequirements: [],
+  recommendations: [],
+  forecastData: [],
+  openPOs: [],
+  skuMix: {},
+  skuMixOverrides: {},
+  componentsAll: [],
   uploadHistory: [],
 };
 
@@ -983,6 +1105,7 @@ const screenTitles = {
   dashboard: 'Dashboard',
   recommendations: 'PO Recommendations',
   forecast: 'Forecast',
+  pos: 'Open Purchase Orders',
   uploads: 'Upload Center',
   components: 'Component Master'
 };
@@ -996,6 +1119,7 @@ function showScreen(name) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'recommendations') renderRecommendations();
   if (name === 'forecast') renderForecast();
+  if (name === 'pos') renderPOs();
   if (name === 'components') renderComponents();
   if (name === 'uploads') renderUploadHistory();
 }
@@ -1033,6 +1157,7 @@ async function refreshAllData() {
       loadRecommendations(),
       loadNetRequirements(),
       loadForecast(),
+      loadOpenPOs(),
     ]);
     updateLastSync();
     renderCurrentScreen();
@@ -1070,6 +1195,10 @@ async function loadForecast() {
   const today = new Date();
   const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
   state.forecastData = await sbGet('monthly_forecast', `order=forecast_month&forecast_month=gte.${sixMonthsAgo}`);
+}
+
+async function loadOpenPOs() {
+  state.openPOs = await sbGet('open_purchase_orders', 'order=expected_receipt_date,po_number');
 }
 
 function updateLastSync() {
@@ -1916,6 +2045,224 @@ async function renderUploadHistory() {
     </tr>`).join('');
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:20px">Could not load history</td></tr>`;
+  }
+}
+
+// ============================================================
+// OPEN POs
+// ============================================================
+let editingPOId = null;
+
+function renderPOs() {
+  const tbody = document.getElementById('posBody');
+  const filterStatus = document.getElementById('poFilterStatus')?.value || '';
+
+  const itemById = {};
+  for (const i of state.items) itemById[i.item_id] = i;
+  const supplierById = {};
+  for (const s of state.suppliers) supplierById[s.supplier_id] = s;
+
+  let pos = [...state.openPOs];
+  if (filterStatus) pos = pos.filter(p => p.po_status === filterStatus);
+
+  if (pos.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◎</div>
+      <div class="empty-title">${state.openPOs.length === 0 ? 'No open POs — click Add PO Line to create one' : 'No POs match filter'}</div></div></td></tr>`;
+    return;
+  }
+
+  const today = new Date();
+
+  tbody.innerHTML = pos.map(po => {
+    const item = itemById[po.item_id];
+    const supplier = supplierById[po.supplier_id];
+    const receipt = po.expected_receipt_date ? new Date(po.expected_receipt_date) : null;
+    const daysOut = receipt ? Math.round((receipt - today) / 86400000) : null;
+    const isOverdue = daysOut !== null && daysOut < 0;
+    const statusColor = po.po_status === 'OPEN' ? 'blue' : po.po_status === 'PARTIAL' ? 'yellow' : 'gray';
+    const qtyOut = parseFloat(po.qty_outstanding) || (parseFloat(po.qty_ordered) - parseFloat(po.qty_received || 0));
+
+    return `<tr>
+      <td class="mono" style="font-weight:600">${po.po_number}</td>
+      <td style="max-width:220px">
+        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item?.part_name || `Item #${po.item_id}`}</div>
+      </td>
+      <td style="color:var(--text2);font-size:12px">${supplier?.supplier_name || '—'}</td>
+      <td class="mono">${parseFloat(po.qty_ordered).toLocaleString()}</td>
+      <td class="mono">${parseFloat(po.qty_received || 0).toLocaleString()}</td>
+      <td class="mono" style="font-weight:600;color:${qtyOut > 0 ? 'var(--pw-blue)' : 'var(--text3)'}">${qtyOut.toLocaleString()}</td>
+      <td class="mono text-dim">${po.order_date ? new Date(po.order_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}</td>
+      <td class="mono ${isOverdue ? 'order-urgent' : ''}">${receipt ? receipt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}
+        ${daysOut !== null ? `<span style="font-size:10px;color:${isOverdue ? 'var(--red)' : daysOut < 14 ? 'var(--yellow)' : 'var(--text3)'}">
+          ${isOverdue ? ` (${Math.abs(daysOut)}d overdue)` : ` (${daysOut}d)`}</span>` : ''}
+      </td>
+      <td><span class="pill ${statusColor}">${po.po_status}</span></td>
+      <td>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal(${po.po_line_id})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePOLine(${po.po_line_id}, '${po.po_number}')">Delete</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddPOModal() {
+  editingPOId = null;
+  document.getElementById('poModalTitle').textContent = 'Add PO Line';
+  document.getElementById('poSaveBtn').textContent = 'Add PO Line';
+
+  // Clear fields
+  ['po_number','po_qty_ordered','po_qty_received','po_unit_cost','po_notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('po_status').value = 'OPEN';
+  document.getElementById('po_qty_received').value = '0';
+  document.getElementById('po_order_date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('po_receipt_date').value = '';
+  document.getElementById('po_item_id').value = '';
+  document.getElementById('po_supplier_id').value = '';
+
+  populatePOModalDropdowns();
+  document.getElementById('poModal').style.display = 'flex';
+}
+
+function openEditPOModal(poLineId) {
+  const po = state.openPOs.find(p => p.po_line_id === poLineId);
+  if (!po) return;
+  editingPOId = poLineId;
+
+  document.getElementById('poModalTitle').textContent = 'Edit PO Line';
+  document.getElementById('poSaveBtn').textContent = 'Save Changes';
+
+  populatePOModalDropdowns();
+
+  document.getElementById('po_number').value = po.po_number || '';
+  document.getElementById('po_status').value = po.po_status || 'OPEN';
+  document.getElementById('po_item_id').value = po.item_id || '';
+  document.getElementById('po_supplier_id').value = po.supplier_id || '';
+  document.getElementById('po_qty_ordered').value = po.qty_ordered || '';
+  document.getElementById('po_qty_received').value = po.qty_received || 0;
+  document.getElementById('po_order_date').value = po.order_date || '';
+  document.getElementById('po_receipt_date').value = po.expected_receipt_date || '';
+  document.getElementById('po_unit_cost').value = po.unit_cost || '';
+  document.getElementById('po_notes').value = po.notes || '';
+
+  document.getElementById('poModal').style.display = 'flex';
+}
+
+function populatePOModalDropdowns() {
+  // Components — only show COMPONENT type items
+  const compSelect = document.getElementById('po_item_id');
+  const components = state.items.filter(i => i.item_type === 'COMPONENT').sort((a,b) => a.part_name.localeCompare(b.part_name));
+  compSelect.innerHTML = `<option value="">— Select component —</option>` +
+    components.map(c => `<option value="${c.item_id}">${c.part_name}</option>`).join('');
+
+  // Auto-set supplier when component changes
+  compSelect.onchange = () => {
+    const itemId = parseInt(compSelect.value);
+    const is = state.itemSuppliers.find(x => x.item_id === itemId);
+    if (is) document.getElementById('po_supplier_id').value = is.supplier_id;
+
+    // Auto-calc receipt date from lead time if not set
+    const receiptField = document.getElementById('po_receipt_date');
+    if (!receiptField.value && is) {
+      const sup = state.suppliers.find(s => s.supplier_id === is.supplier_id);
+      const leadDays = is.lead_time_override || sup?.lead_time_days || 30;
+      const d = new Date();
+      d.setDate(d.getDate() + leadDays);
+      receiptField.value = d.toISOString().split('T')[0];
+    }
+  };
+
+  // Suppliers
+  const supSelect = document.getElementById('po_supplier_id');
+  supSelect.innerHTML = `<option value="">— Select supplier —</option>` +
+    state.suppliers.filter(s => s.is_active).sort((a,b) => a.supplier_name.localeCompare(b.supplier_name))
+      .map(s => `<option value="${s.supplier_id}">${s.supplier_name}</option>`).join('');
+}
+
+function closePOModal() {
+  document.getElementById('poModal').style.display = 'none';
+  editingPOId = null;
+}
+
+async function savePOLine() {
+  const poNumber = document.getElementById('po_number').value.trim();
+  const itemId = parseInt(document.getElementById('po_item_id').value);
+  const supplierId = parseInt(document.getElementById('po_supplier_id').value) || null;
+  const qtyOrdered = parseFloat(document.getElementById('po_qty_ordered').value);
+  const qtyReceived = parseFloat(document.getElementById('po_qty_received').value) || 0;
+  const receiptDate = document.getElementById('po_receipt_date').value;
+  const orderDate = document.getElementById('po_order_date').value;
+  const status = document.getElementById('po_status').value;
+  const unitCost = parseFloat(document.getElementById('po_unit_cost').value) || null;
+  const notes = document.getElementById('po_notes').value.trim() || null;
+
+  // Validation
+  if (!poNumber) { toast('PO Number is required', 'error'); return; }
+  if (!itemId) { toast('Component is required', 'error'); return; }
+  if (!qtyOrdered || qtyOrdered <= 0) { toast('Qty Ordered must be greater than 0', 'error'); return; }
+  if (!receiptDate) { toast('Expected Receipt Date is required', 'error'); return; }
+
+  const qtyOutstanding = Math.max(0, qtyOrdered - qtyReceived);
+
+  const payload = {
+    po_number: poNumber,
+    item_id: itemId,
+    supplier_id: supplierId,
+    qty_ordered: qtyOrdered,
+    qty_received: qtyReceived,
+    qty_outstanding: qtyOutstanding,
+    order_date: orderDate || null,
+    expected_receipt_date: receiptDate,
+    po_status: status,
+    unit_cost: unitCost,
+    notes: notes,
+    uploaded_at: new Date().toISOString(),
+  };
+
+  showLoading(editingPOId ? 'Updating PO...' : 'Adding PO...');
+  try {
+    if (editingPOId) {
+      await sbPatch('open_purchase_orders', `po_line_id=eq.${editingPOId}`, payload);
+      toast(`PO line updated`, 'success');
+    } else {
+      // Get next line number for this PO
+      const existingLines = state.openPOs.filter(p => p.po_number === poNumber).length;
+      payload.line_number = existingLines + 1;
+      await sbPost('open_purchase_orders', payload);
+      toast(`PO line added`, 'success');
+    }
+    closePOModal();
+    await loadOpenPOs();
+    await loadRecommendations();
+    await loadNetRequirements();
+    renderPOs();
+    renderDashboard();
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deletePOLine(poLineId, poNumber) {
+  if (!confirm(`Delete PO line from ${poNumber}? This cannot be undone.`)) return;
+  showLoading('Deleting...');
+  try {
+    await sbDelete('open_purchase_orders', `po_line_id=eq.${poLineId}`);
+    toast(`PO line deleted`, 'success');
+    await loadOpenPOs();
+    await loadRecommendations();
+    await loadNetRequirements();
+    renderPOs();
+    renderDashboard();
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
