@@ -667,7 +667,8 @@ select.form-input option { background: var(--surface2); }
                   <th>On Hand</th>
                   <th>Coverage</th>
                   <th>Lead Time</th>
-                  <th>Projected Balance</th>
+                  <th>Avg Wkly Usage (12w)</th>
+                  <th>Projected Stockout</th>
                   <th>Net Req.</th>
                   <th>Status</th>
                 </tr>
@@ -1223,7 +1224,6 @@ function renderDashboard() {
   const filter = document.getElementById('filterStatus')?.value || '';
 
   // Build component status from net requirements + inventory
-  // Get latest balance per component from net requirements
   const componentMap = {};
   for (const row of state.netRequirements) {
     if (!componentMap[row.component_item_id]) {
@@ -1234,20 +1234,43 @@ function renderDashboard() {
         onHand: parseFloat(row.qty_on_hand) || 0,
         safetyStock: parseFloat(row.safety_stock) || 0,
         safetyStockWeeks: parseFloat(row.safety_stock_weeks) || 4,
-        minProjected: Infinity,
-        maxNetReq: 0,
+        weeklyDemands: [],   // all weekly gross_req values
         firstShortageWeek: null,
+        stockoutDate: null,
+        maxNetReq: 0,
       };
     }
-    const pb = parseFloat(row.projected_balance) || 0;
+    const c = componentMap[row.component_item_id];
+    const grossReq = parseFloat(row.gross_req) || 0;
+    c.weeklyDemands.push({ week: row.week_start_date, demand: grossReq });
+
     const nr = parseFloat(row.net_requirement) || 0;
-    if (pb < componentMap[row.component_item_id].minProjected) {
-      componentMap[row.component_item_id].minProjected = pb;
+    const pb = parseFloat(row.projected_balance) || 0;
+    // First week projected balance goes negative = stockout
+    if (!c.stockoutDate && pb < 0) {
+      c.stockoutDate = row.week_start_date;
     }
-    if (nr > 0 && !componentMap[row.component_item_id].firstShortageWeek) {
-      componentMap[row.component_item_id].firstShortageWeek = row.week_start_date;
-      componentMap[row.component_item_id].maxNetReq = nr;
+    if (nr > 0 && !c.firstShortageWeek) {
+      c.firstShortageWeek = row.week_start_date;
+      c.maxNetReq = nr;
     }
+  }
+
+  // Calc avg weekly usage over next 12 weeks per component
+  const today = new Date();
+  const twelveWeeksOut = new Date(today);
+  twelveWeeksOut.setDate(twelveWeeksOut.getDate() + 84);
+
+  for (const c of Object.values(componentMap)) {
+    const next12 = c.weeklyDemands.filter(w => {
+      const d = new Date(w.week);
+      return d >= today && d <= twelveWeeksOut;
+    });
+    c.avgWeeklyUsage = next12.length > 0
+      ? next12.reduce((s, w) => s + w.demand, 0) / next12.length
+      : (c.weeklyDemands.length > 0
+          ? c.weeklyDemands.reduce((s, w) => s + w.demand, 0) / c.weeklyDemands.length
+          : 0);
   }
 
   // Enrich with supplier lead time
@@ -1271,12 +1294,8 @@ function renderDashboard() {
     r.leadDays = leadDays;
     r.supplier = supRow?.supplier_name || '—';
 
-    // Coverage = on hand / weekly demand (rough)
-    const weeklyDemand = state.netRequirements
-      .filter(x => x.component_item_id === r.id)
-      .reduce((sum, x) => sum + parseFloat(x.gross_req || 0), 0) / Math.max(state.netRequirements.filter(x => x.component_item_id === r.id).length, 1);
-
-    r.coverageWeeks = weeklyDemand > 0 ? Math.round(r.onHand / weeklyDemand) : 99;
+    // Coverage weeks = on hand ÷ avg weekly usage
+    r.coverageWeeks = r.avgWeeklyUsage > 0 ? Math.round(r.onHand / r.avgWeeklyUsage) : 99;
 
     if (r.firstShortageWeek) {
       const shortageDate = new Date(r.firstShortageWeek);
@@ -1339,17 +1358,30 @@ function renderDashboard() {
   // Render table
   const tbody = document.getElementById('dashboardBody');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">${state.netRequirements.length === 0 ? 'No forecast data — upload files and set forecast to populate' : 'No components match filter'}</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">${state.netRequirements.length === 0 ? 'No forecast data — upload files and set forecast to populate' : 'No components match filter'}</div></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
     const coveragePct = Math.min(100, (r.coverageWeeks / 20) * 100);
     const coverageColor = r.status;
-    const projBal = r.minProjected === Infinity ? r.onHand : r.minProjected;
-    const orderByStr = r.orderByDate
-      ? `<span class="${r.status === 'red' ? 'order-urgent' : r.status === 'yellow' ? 'order-soon' : 'order-ok'}">${r.orderByDate.toLocaleDateString('en-US', {month:'short', day:'numeric'})}</span>`
-      : '<span style="color:var(--text3)">—</span>';
+
+    // Stockout week display
+    let stockoutCell;
+    if (r.stockoutDate) {
+      const stockoutD = new Date(r.stockoutDate);
+      const weeksUntil = Math.round((stockoutD - today) / 604800000);
+      const color = weeksUntil <= 2 ? 'var(--red)' : weeksUntil <= 6 ? 'var(--yellow)' : 'var(--text2)';
+      stockoutCell = `<div style="font-weight:600;color:${color}">${stockoutD.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+        <div style="font-size:10px;color:${color};font-family:var(--font-mono)">${weeksUntil <= 0 ? 'THIS WEEK' : `in ${weeksUntil}w`}</div>`;
+    } else {
+      stockoutCell = `<span style="color:var(--text3);font-size:12px">No stockout forecast</span>`;
+    }
+
+    // Avg weekly usage
+    const avgUsage = r.avgWeeklyUsage > 0
+      ? `<span class="mono">${r.avgWeeklyUsage.toFixed(1)}</span><span style="font-size:10px;color:var(--text3)"> /wk</span>`
+      : `<span style="color:var(--text3)">—</span>`;
 
     return `<tr>
       <td><div style="font-weight:500">${r.name}</div><div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${r.supplier}</div></td>
@@ -1362,9 +1394,10 @@ function renderDashboard() {
         </div>
       </td>
       <td class="mono">${r.leadDays}d</td>
-      <td class="mono" style="color:${projBal < 0 ? 'var(--red)' : projBal < r.safetyStock ? 'var(--yellow)' : 'var(--text)'}">${Math.round(projBal).toLocaleString()}</td>
+      <td>${avgUsage}</td>
+      <td>${stockoutCell}</td>
       <td class="mono" style="color:${r.maxNetReq > 0 ? 'var(--red)' : 'var(--text3)'}">${r.maxNetReq > 0 ? r.maxNetReq.toLocaleString() : '—'}</td>
-      <td>${orderByStr ? `<span class="pill ${r.status}">${r.status === 'red' ? 'ORDER NOW' : r.status === 'yellow' ? 'ORDER SOON' : 'COVERED'}</span>` : '<span class="pill green">COVERED</span>'}</td>
+      <td><span class="pill ${r.status}">${r.status === 'red' ? 'ORDER NOW' : r.status === 'yellow' ? 'ORDER SOON' : 'COVERED'}</span></td>
     </tr>`;
   }).join('');
 }
