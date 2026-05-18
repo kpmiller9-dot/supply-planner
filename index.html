@@ -1286,7 +1286,6 @@ function renderDashboard() {
   let rows = Object.values(componentMap);
 
   // Determine status
-  const today = new Date();
   rows = rows.map(r => {
     const isRow = supplierByItem[r.id];
     const supRow = isRow ? supplierById[isRow.supplier_id] : null;
