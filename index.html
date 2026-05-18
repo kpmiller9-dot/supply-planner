@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perry Weather — Supply Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e13;
+  --surface: #111720;
+  --surface2: #171f2b;
+  --surface3: #1e2838;
+  --border: #243044;
+  --border2: #2e3d56;
+  --accent: #00c2ff;
+  --accent2: #0077cc;
+  --accent-glow: rgba(0,194,255,0.15);
+  --green: #00e5a0;
+  --green-dim: rgba(0,229,160,0.12);
+  --yellow: #ffc147;
+  --yellow-dim: rgba(255,193,71,0.12);
+  --red: #ff4d6a;
+  --red-dim: rgba(255,77,106,0.12);
+  --text: #e8edf5;
+  --text2: #8a9bb5;
+  --text3: #4d607a;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* LAYOUT */
+.app { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo .logo-mark {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.sidebar-logo .logo-sub {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+.sidebar-nav { flex: 1; padding: 12px 0; }
+
+.nav-section {
+  padding: 8px 16px 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+  margin: 1px 0;
+}
+.nav-item:hover { color: var(--text); background: var(--surface2); }
+.nav-item.active {
+  color: var(--accent);
+  background: var(--accent-glow);
+  border-left-color: var(--accent);
+}
+.nav-item .icon { font-size: 16px; width: 18px; text-align: center; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.sidebar-footer .last-sync { color: var(--text2); }
+
+.main {
+  margin-left: 220px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.topbar-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+.content { padding: 28px 32px; flex: 1; }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+.btn-primary:hover { background: #33ccff; box-shadow: 0 0 16px var(--accent-glow); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text3); background: var(--surface2); }
+.btn-danger {
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(255,77,106,0.3);
+}
+.btn-danger:hover { background: rgba(255,77,106,0.2); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* CARDS */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.card-subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+/* KPI GRID */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.kpi-card.red::before { background: var(--red); }
+.kpi-card.yellow::before { background: var(--yellow); }
+.kpi-card.green::before { background: var(--green); }
+.kpi-card.blue::before { background: var(--accent); }
+.kpi-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; font-family: var(--font-mono); }
+.kpi-value { font-family: var(--font-display); font-size: 32px; font-weight: 800; margin: 6px 0 2px; line-height: 1; }
+.kpi-value.red { color: var(--red); }
+.kpi-value.yellow { color: var(--yellow); }
+.kpi-value.green { color: var(--green); }
+.kpi-value.blue { color: var(--accent); }
+.kpi-meta { font-size: 11px; color: var(--text3); }
+
+/* TABLES */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--surface2);
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+tbody tr:hover { background: var(--surface2); }
+tbody td { padding: 10px 14px; color: var(--text); vertical-align: middle; }
+tbody tr:last-child { border-bottom: none; }
+
+.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* STATUS PILLS */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.pill::before { content: '●'; font-size: 8px; }
+.pill.red { background: var(--red-dim); color: var(--red); }
+.pill.yellow { background: var(--yellow-dim); color: var(--yellow); }
+.pill.green { background: var(--green-dim); color: var(--green); }
+.pill.blue { background: var(--accent-glow); color: var(--accent); }
+.pill.gray { background: rgba(138,155,181,0.1); color: var(--text2); }
+
+/* PROGRESS BAR */
+.progress-bar {
+  height: 4px;
+  background: var(--surface3);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 80px;
+}
+.progress-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.progress-fill.red { background: var(--red); }
+.progress-fill.yellow { background: var(--yellow); }
+.progress-fill.green { background: var(--green); }
+
+/* FORMS */
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.form-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  transition: border-color 0.15s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.form-input::placeholder { color: var(--text3); }
+select.form-input option { background: var(--surface2); }
+
+/* GRID LAYOUTS */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+/* UPLOAD ZONE */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface2);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.upload-zone .upload-icon { font-size: 32px; margin-bottom: 8px; }
+.upload-zone .upload-text { color: var(--text2); font-size: 13px; }
+.upload-zone .upload-hint { color: var(--text3); font-size: 11px; margin-top: 4px; font-family: var(--font-mono); }
+
+/* SECTION DIVIDER */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* TABS */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab {
+  padding: 10px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* SCREENS */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* LOADING */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10,14,19,0.85);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+  display: none;
+}
+.loading-spinner {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-text { font-family: var(--font-mono); font-size: 12px; color: var(--text2); }
+
+/* TOAST */
+.toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999;
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  max-width: 320px;
+  animation: slideUp 0.2s ease;
+  display: flex; align-items: center; gap: 8px;
+}
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error { border-color: var(--red); color: var(--red); }
+.toast.info { border-color: var(--accent); color: var(--accent); }
+@keyframes slideUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: none; } }
+
+/* FORECAST GRID */
+.forecast-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.forecast-month-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.forecast-month-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.forecast-month-card.current-month { border-color: var(--accent); }
+
+/* WEEK CHART */
+.week-chart { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin-top: 8px; }
+.week-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height 0.3s;
+}
+.week-bar.demand { background: var(--accent2); opacity: 0.7; }
+.week-bar.receipt { background: var(--green); opacity: 0.7; }
+
+/* EMPTY STATE */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text3);
+}
+.empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state .empty-title { font-family: var(--font-display); font-size: 16px; color: var(--text2); margin-bottom: 6px; }
+.empty-state .empty-text { font-size: 13px; }
+
+/* MISC */
+.text-right { text-align: right; }
+.text-mono { font-family: var(--font-mono); font-size: 12px; }
+.text-dim { color: var(--text2); }
+.text-sm { font-size: 12px; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-16 { margin-bottom: 16px; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+
+/* INLINE EDIT */
+.inline-edit-input {
+  background: var(--surface3);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  width: 80px;
+  outline: none;
+}
+
+/* PO HIGHLIGHT */
+.order-urgent { color: var(--red); font-weight: 600; }
+.order-soon { color: var(--yellow); }
+.order-ok { color: var(--green); }
+
+/* COVERAGE BAR */
+.coverage-wrap { display: flex; align-items: center; gap: 8px; }
+.coverage-label { font-family: var(--font-mono); font-size: 11px; min-width: 36px; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner">
+    <div class="spinner"></div>
+    <div class="spinner-text" id="loadingText">Loading...</div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">⚡ PW</div>
+      <div class="logo-sub">Supply Planner</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Planning</div>
+      <div class="nav-item active" onclick="showScreen('dashboard')" id="nav-dashboard">
+        <span class="icon">◈</span> Dashboard
+        <span class="nav-badge" id="badge-red" style="display:none">0</span>
+      </div>
+      <div class="nav-item" onclick="showScreen('recommendations')" id="nav-recommendations">
+        <span class="icon">◎</span> PO Recommendations
+      </div>
+      <div class="nav-item" onclick="showScreen('forecast')" id="nav-forecast">
+        <span class="icon">◇</span> Forecast
+      </div>
+      <div class="nav-section">Data</div>
+      <div class="nav-item" onclick="showScreen('uploads')" id="nav-uploads">
+        <span class="icon">↑</span> Upload Center
+      </div>
+      <div class="nav-item" onclick="showScreen('components')" id="nav-components">
+        <span class="icon">⊞</span> Components
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div>Last upload</div>
+      <div class="last-sync" id="lastSync">—</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="refreshAllData()">↻ Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="showScreen('uploads')">↑ Upload Data</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="screen active" id="screen-dashboard">
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="kpi-card red">
+            <div class="kpi-label">Critical — Order Now</div>
+            <div class="kpi-value red" id="kpi-red">—</div>
+            <div class="kpi-meta">components past order-by date</div>
+          </div>
+          <div class="kpi-card yellow">
+            <div class="kpi-label">Order Within 2 Weeks</div>
+            <div class="kpi-value yellow" id="kpi-yellow">—</div>
+            <div class="kpi-meta">components approaching threshold</div>
+          </div>
+          <div class="kpi-card green">
+            <div class="kpi-label">Covered</div>
+            <div class="kpi-value green" id="kpi-green">—</div>
+            <div class="kpi-meta">components within coverage</div>
+          </div>
+          <div class="kpi-card blue">
+            <div class="kpi-label">Open POs</div>
+            <div class="kpi-value blue" id="kpi-pos">—</div>
+            <div class="kpi-meta">inbound purchase orders</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Component Coverage Status</div>
+              <div class="card-subtitle">Sorted by urgency — based on projected balance vs. lead time</div>
+            </div>
+            <div class="flex gap-8">
+              <select class="form-input" style="width:140px;padding:6px 10px" id="filterStatus" onchange="renderDashboard()">
+                <option value="">All Status</option>
+                <option value="red">Critical Only</option>
+                <option value="yellow">Needs Attention</option>
+                <option value="green">Covered</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="dashboardTable">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Category</th>
+                  <th>On Hand</th>
+                  <th>Coverage</th>
+                  <th>Lead Time</th>
+                  <th>Projected Balance</th>
+                  <th>Net Req.</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardBody">
+                <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">Loading coverage data...</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PO RECOMMENDATIONS -->
+      <div class="screen" id="screen-recommendations">
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Recommended Purchase Orders</div>
+              <div class="card-subtitle">Generated from net requirements — sorted by order-by date</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="exportRecommendations()">↓ Export CSV</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Supplier</th>
+                  <th>Lead Time</th>
+                  <th>Need By</th>
+                  <th>Order By</th>
+                  <th>Qty Needed</th>
+                  <th>Suggested Qty</th>
+                  <th>Proj. Balance</th>
+                  <th>Urgency</th>
+                </tr>
+              </thead>
+              <tbody id="recommendationsBody">
+                <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No recommendations loaded</div><div class="empty-text">Upload forecast and inventory data to generate recommendations</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORECAST -->
+      <div class="screen" id="screen-forecast">
+        <div class="grid-2" style="margin-bottom:20px">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Monthly Unit Forecast</div>
+                <div class="card-subtitle">Total units to produce — drives all component requirements</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="saveForecast()">Save Forecast</button>
+            </div>
+            <div class="forecast-grid" id="forecastGrid">
+              <!-- Rendered by JS -->
+            </div>
+            <div class="mt-16" style="padding:12px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text2)">
+              <strong style="color:var(--text)">How this works:</strong> Enter total units per month. The system blows down to SKU level using trailing 90-day actual mix from your install order history, then multiplies by BOM to get component demand.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">SKU Mix Override</div>
+                <div class="card-subtitle">Trailing 90-day actuals — override if you expect mix to shift</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="resetMixOverrides()">Reset to Actuals</button>
+            </div>
+            <div id="mixOverrideTable">
+              <div class="empty-state" style="padding:24px">
+                <div class="empty-icon">◇</div>
+                <div class="empty-title">Upload install orders</div>
+                <div class="empty-text">SKU mix will be calculated from trailing 90 days</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Weekly Component Demand Forecast</div>
+            <div class="card-subtitle">Calculated from monthly forecast × SKU mix × BOM</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Category</th>
+                  <th id="wk1h">Wk 1</th>
+                  <th id="wk2h">Wk 2</th>
+                  <th id="wk3h">Wk 3</th>
+                  <th id="wk4h">Wk 4</th>
+                  <th id="wk5h">Wk 5</th>
+                  <th id="wk6h">Wk 6</th>
+                  <th id="wk7h">Wk 7</th>
+                  <th id="wk8h">Wk 8</th>
+                  <th>8-Wk Total</th>
+                </tr>
+              </thead>
+              <tbody id="forecastDetailBody">
+                <tr><td colspan="11"><div class="empty-state"><div class="empty-title">Set forecast to see component demand</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- UPLOADS -->
+      <div class="screen" id="screen-uploads">
+        <div class="grid-3" style="margin-bottom:20px">
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">📦 Manufacturing Queue</div>
+                <div class="card-subtitle">Confirmed near-term demand (Week 1)</div>
+              </div>
+            </div>
+            <div class="upload-zone" id="mfgZone" onclick="triggerUpload('mfg')" ondragover="handleDragOver(event,'mfgZone')" ondragleave="handleDragLeave('mfgZone')" ondrop="handleDrop(event,'mfg')">
+              <div class="upload-icon">⊞</div>
+              <div class="upload-text">Drop Manufacturing Queue export</div>
+              <div class="upload-hint">Zoho Creator export • .xlsx or .csv</div>
+            </div>
+            <input type="file" id="upload-mfg" style="display:none" accept=".xlsx,.csv" onchange="handleFileUpload(event,'mfg')">
+            <div class="mt-8" id="mfg-status" style="font-size:12px;color:var(--text3);font-family:var(--font-mono)">No file uploaded</div>
+            <div class="mt-8" style="font-size:11px;color:var(--text3)">
+              Required columns: Ship?, Complete By, Model, # Speakers, Customer, Site
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">🏭 Components / Inventory</div>
+                <div class="card-subtitle">Current on-hand stock levels</div>
+              </div>
+            </div>
+            <div class="upload-zone" id="invZone" onclick="triggerUpload('inv')" ondragover="handleDragOver(event,'invZone')" ondragleave="handleDragLeave('invZone')" ondrop="handleDrop(event,'inv')">
+              <div class="upload-icon">◈</div>
+              <div class="upload-text">Drop Components export</div>
+              <div class="upload-hint">Zoho Inventory export • .xlsx or .csv</div>
+            </div>
+            <input type="file" id="upload-inv" style="display:none" accept=".xlsx,.csv" onchange="handleFileUpload(event,'inv')">
+            <div class="mt-8" id="inv-status" style="font-size:12px;color:var(--text3);font-family:var(--font-mono)">No file uploaded</div>
+            <div class="mt-8" style="font-size:11px;color:var(--text3)">
+              Required columns: Internal Name (read only), Current Stock, Status
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">📋 Open Purchase Orders</div>
+                <div class="card-subtitle">Inbound stock and expected dates</div>
+              </div>
+            </div>
+            <div class="upload-zone" id="poZone" onclick="triggerUpload('po')" ondragover="handleDragOver(event,'poZone')" ondragleave="handleDragLeave('poZone')" ondrop="handleDrop(event,'po')">
+              <div class="upload-icon">◎</div>
+              <div class="upload-text">Drop Open POs export</div>
+              <div class="upload-hint">Zoho Creator export • .xlsx or .csv</div>
+            </div>
+            <input type="file" id="upload-po" style="display:none" accept=".xlsx,.csv" onchange="handleFileUpload(event,'po')">
+            <div class="mt-8" id="po-status" style="font-size:12px;color:var(--text3);font-family:var(--font-mono)">No file uploaded</div>
+            <div class="mt-8" style="font-size:11px;color:var(--text3)">
+              Required columns: PO Number, Component Name, Qty Ordered, Expected Receipt Date
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Upload History</div>
+            <div class="card-subtitle">All historical uploads preserved — never overwritten</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Records</th>
+                  <th>Status</th>
+                  <th>Uploaded By</th>
+                </tr>
+              </thead>
+              <tbody id="uploadHistoryBody">
+                <tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="empty-title">No upload history</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPONENTS MASTER -->
+      <div class="screen" id="screen-components">
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Component Master</div>
+              <div class="card-subtitle">Lead times and safety stock — these values drive the planning engine</div>
+            </div>
+            <div class="flex gap-8">
+              <input type="text" class="form-input" style="width:240px;padding:6px 12px" placeholder="Search components..." id="componentSearch" oninput="filterComponents()">
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Category</th>
+                  <th>Lead Time (days)</th>
+                  <th>Safety Stock (wks)</th>
+                  <th>Primary Supplier</th>
+                  <th>On Hand</th>
+                  <th>Days Supply</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="componentsBody">
+                <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">⊞</div><div class="empty-title">Loading components...</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://sxgkiitdztjpjmvtleqr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4Z2tpaXRkenRqcGptdnRsZXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NDM0NzQsImV4cCI6MjA4NzUxOTQ3NH0.DB5ajlILTo_PnaQ1kjT6PDQFyHsB34M53pgWJ8pjvTY';
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  items: [],
+  suppliers: [],
+  itemSuppliers: [],
+  inventory: [],        // latest_inventory view
+  netRequirements: [],  // v_net_requirements view
+  recommendations: [],  // v_purchasing_recommendations view
+  forecastData: [],     // monthly_forecast table
+  skuMix: {},           // calculated from install order history
+  skuMixOverrides: {},  // user overrides
+  componentsAll: [],    // all components with enriched data
+  uploadHistory: [],
+};
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ============================================================
+// SUPABASE API
+// ============================================================
+async function sbFetch(path, opts = {}) {
+  const url = `${SUPABASE_URL}/rest/v1/${path}`;
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status}: ${err}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+async function sbGet(table, query = '') {
+  return sbFetch(`${table}?${query}`);
+}
+
+async function sbPost(table, body) {
+  return sbFetch(table, { method: 'POST', body: JSON.stringify(body) });
+}
+
+async function sbUpsert(table, body, onConflict) {
+  return sbFetch(table, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    prefer: `resolution=merge-duplicates,return=representation`,
+    headers: onConflict ? { 'Prefer': `resolution=merge-duplicates,return=representation` } : {}
+  });
+}
+
+async function sbPatch(table, query, body) {
+  return sbFetch(`${table}?${query}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
+async function sbDelete(table, query) {
+  return sbFetch(`${table}?${query}`, { method: 'DELETE' });
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+const screenTitles = {
+  dashboard: 'Dashboard',
+  recommendations: 'PO Recommendations',
+  forecast: 'Forecast',
+  uploads: 'Upload Center',
+  components: 'Component Master'
+};
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+  document.getElementById('topbarTitle').textContent = screenTitles[name];
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'recommendations') renderRecommendations();
+  if (name === 'forecast') renderForecast();
+  if (name === 'components') renderComponents();
+  if (name === 'uploads') renderUploadHistory();
+}
+
+// ============================================================
+// LOADING & TOASTS
+// ============================================================
+function showLoading(msg = 'Loading...') {
+  document.getElementById('loadingText').textContent = msg;
+  document.getElementById('loadingOverlay').style.display = 'flex';
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</span> ${msg}`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ============================================================
+// DATA LOADING
+// ============================================================
+async function refreshAllData() {
+  showLoading('Refreshing data...');
+  try {
+    await Promise.all([
+      loadItems(),
+      loadSuppliers(),
+      loadInventory(),
+      loadRecommendations(),
+      loadNetRequirements(),
+      loadForecast(),
+    ]);
+    updateLastSync();
+    renderCurrentScreen();
+    toast('Data refreshed', 'success');
+  } catch(e) {
+    toast(`Error loading data: ${e.message}`, 'error');
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function loadItems() {
+  state.items = await sbGet('items', 'order=part_name&is_active=eq.true');
+}
+
+async function loadSuppliers() {
+  state.suppliers = await sbGet('suppliers', 'order=supplier_name');
+  state.itemSuppliers = await sbGet('item_suppliers', '');
+}
+
+async function loadInventory() {
+  state.inventory = await sbGet('latest_inventory', '');
+}
+
+async function loadRecommendations() {
+  state.recommendations = await sbGet('v_purchasing_recommendations', '');
+}
+
+async function loadNetRequirements() {
+  state.netRequirements = await sbGet('v_net_requirements', 'order=week_start_date,component_part_name');
+}
+
+async function loadForecast() {
+  const today = new Date();
+  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  state.forecastData = await sbGet('monthly_forecast', `order=forecast_month&forecast_month=gte.${sixMonthsAgo}`);
+}
+
+function updateLastSync() {
+  const now = new Date();
+  document.getElementById('lastSync').textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+}
+
+function renderCurrentScreen() {
+  const active = document.querySelector('.screen.active');
+  if (!active) return;
+  const name = active.id.replace('screen-', '');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'recommendations') renderRecommendations();
+  if (name === 'forecast') renderForecast();
+  if (name === 'components') renderComponents();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const filter = document.getElementById('filterStatus')?.value || '';
+
+  // Build component status from net requirements + inventory
+  // Get latest balance per component from net requirements
+  const componentMap = {};
+  for (const row of state.netRequirements) {
+    if (!componentMap[row.component_item_id]) {
+      componentMap[row.component_item_id] = {
+        id: row.component_item_id,
+        name: row.component_part_name,
+        category: row.category || '—',
+        onHand: parseFloat(row.qty_on_hand) || 0,
+        safetyStock: parseFloat(row.safety_stock) || 0,
+        safetyStockWeeks: parseFloat(row.safety_stock_weeks) || 4,
+        minProjected: Infinity,
+        maxNetReq: 0,
+        firstShortageWeek: null,
+      };
+    }
+    const pb = parseFloat(row.projected_balance) || 0;
+    const nr = parseFloat(row.net_requirement) || 0;
+    if (pb < componentMap[row.component_item_id].minProjected) {
+      componentMap[row.component_item_id].minProjected = pb;
+    }
+    if (nr > 0 && !componentMap[row.component_item_id].firstShortageWeek) {
+      componentMap[row.component_item_id].firstShortageWeek = row.week_start_date;
+      componentMap[row.component_item_id].maxNetReq = nr;
+    }
+  }
+
+  // Enrich with supplier lead time
+  const supplierByItem = {};
+  for (const is of state.itemSuppliers) {
+    supplierByItem[is.item_id] = is;
+  }
+  const supplierById = {};
+  for (const s of state.suppliers) {
+    supplierById[s.supplier_id] = s;
+  }
+
+  let rows = Object.values(componentMap);
+
+  // Determine status
+  const today = new Date();
+  rows = rows.map(r => {
+    const isRow = supplierByItem[r.id];
+    const supRow = isRow ? supplierById[isRow.supplier_id] : null;
+    const leadDays = isRow?.lead_time_override || supRow?.lead_time_days || 30;
+    r.leadDays = leadDays;
+    r.supplier = supRow?.supplier_name || '—';
+
+    // Coverage = on hand / weekly demand (rough)
+    const weeklyDemand = state.netRequirements
+      .filter(x => x.component_item_id === r.id)
+      .reduce((sum, x) => sum + parseFloat(x.gross_req || 0), 0) / Math.max(state.netRequirements.filter(x => x.component_item_id === r.id).length, 1);
+
+    r.coverageWeeks = weeklyDemand > 0 ? Math.round(r.onHand / weeklyDemand) : 99;
+
+    if (r.firstShortageWeek) {
+      const shortageDate = new Date(r.firstShortageWeek);
+      const orderByDate = new Date(shortageDate);
+      orderByDate.setDate(orderByDate.getDate() - leadDays);
+      r.orderByDate = orderByDate;
+      const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
+      r.daysUntilOrderBy = daysUntilOrderBy;
+      if (daysUntilOrderBy <= 0) r.status = 'red';
+      else if (daysUntilOrderBy <= 14) r.status = 'yellow';
+      else r.status = 'green';
+    } else {
+      r.status = 'green';
+      r.daysUntilOrderBy = 999;
+      r.orderByDate = null;
+    }
+    return r;
+  });
+
+  // Sort by urgency
+  rows.sort((a, b) => {
+    const order = { red: 0, yellow: 1, green: 2 };
+    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+    return (a.daysUntilOrderBy || 999) - (b.daysUntilOrderBy || 999);
+  });
+
+  // Filter
+  if (filter) rows = rows.filter(r => r.status === filter);
+
+  // KPIs
+  const allRows = Object.values(componentMap).map(r => {
+    const isRow = supplierByItem[r.id];
+    const supRow = isRow ? supplierById[isRow.supplier_id] : null;
+    const leadDays = isRow?.lead_time_override || supRow?.lead_time_days || 30;
+    if (r.firstShortageWeek) {
+      const shortageDate = new Date(r.firstShortageWeek);
+      const orderByDate = new Date(shortageDate);
+      orderByDate.setDate(orderByDate.getDate() - leadDays);
+      const days = Math.round((orderByDate - today) / 86400000);
+      if (days <= 0) return 'red';
+      if (days <= 14) return 'yellow';
+    }
+    return 'green';
+  });
+
+  document.getElementById('kpi-red').textContent = allRows.filter(s => s === 'red').length;
+  document.getElementById('kpi-yellow').textContent = allRows.filter(s => s === 'yellow').length;
+  document.getElementById('kpi-green').textContent = allRows.filter(s => s === 'green').length;
+  document.getElementById('kpi-pos').textContent = state.recommendations.length;
+
+  const redCount = allRows.filter(s => s === 'red').length;
+  const badge = document.getElementById('badge-red');
+  if (redCount > 0) {
+    badge.style.display = '';
+    badge.textContent = redCount;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Render table
+  const tbody = document.getElementById('dashboardBody');
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">${state.netRequirements.length === 0 ? 'No forecast data — upload files and set forecast to populate' : 'No components match filter'}</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const coveragePct = Math.min(100, (r.coverageWeeks / 20) * 100);
+    const coverageColor = r.status;
+    const projBal = r.minProjected === Infinity ? r.onHand : r.minProjected;
+    const orderByStr = r.orderByDate
+      ? `<span class="${r.status === 'red' ? 'order-urgent' : r.status === 'yellow' ? 'order-soon' : 'order-ok'}">${r.orderByDate.toLocaleDateString('en-US', {month:'short', day:'numeric'})}</span>`
+      : '<span style="color:var(--text3)">—</span>';
+
+    return `<tr>
+      <td><div style="font-weight:500">${r.name}</div><div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${r.supplier}</div></td>
+      <td><span style="font-size:11px;color:var(--text2)">${r.category}</span></td>
+      <td class="mono">${r.onHand.toLocaleString()}</td>
+      <td>
+        <div class="coverage-wrap">
+          <div class="progress-bar" style="width:80px"><div class="progress-fill ${coverageColor}" style="width:${coveragePct}%"></div></div>
+          <span class="coverage-label ${coverageColor === 'red' ? 'order-urgent' : coverageColor === 'yellow' ? 'order-soon' : 'order-ok'}">${r.coverageWeeks}w</span>
+        </div>
+      </td>
+      <td class="mono">${r.leadDays}d</td>
+      <td class="mono" style="color:${projBal < 0 ? 'var(--red)' : projBal < r.safetyStock ? 'var(--yellow)' : 'var(--text)'}">${Math.round(projBal).toLocaleString()}</td>
+      <td class="mono" style="color:${r.maxNetReq > 0 ? 'var(--red)' : 'var(--text3)'}">${r.maxNetReq > 0 ? r.maxNetReq.toLocaleString() : '—'}</td>
+      <td>${orderByStr ? `<span class="pill ${r.status}">${r.status === 'red' ? 'ORDER NOW' : r.status === 'yellow' ? 'ORDER SOON' : 'COVERED'}</span>` : '<span class="pill green">COVERED</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// RECOMMENDATIONS
+// ============================================================
+function renderRecommendations() {
+  const tbody = document.getElementById('recommendationsBody');
+  const today = new Date();
+
+  if (state.recommendations.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No recommendations available</div><div class="empty-text">Set your monthly forecast and ensure inventory data is uploaded</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = state.recommendations.map(r => {
+    const orderBy = new Date(r.order_by_date);
+    const daysUntil = Math.round((orderBy - today) / 86400000);
+    const urgency = daysUntil <= 0 ? 'red' : daysUntil <= 14 ? 'yellow' : 'green';
+    const urgencyLabel = daysUntil <= 0 ? 'ORDER NOW' : daysUntil <= 14 ? 'ORDER SOON' : 'PLAN';
+
+    return `<tr>
+      <td><div style="font-weight:500">${r.component_part_name}</div><div style="font-size:11px;color:var(--text3)">${r.category || ''}</div></td>
+      <td style="color:var(--text2)">${r.supplier_name}</td>
+      <td class="mono">${r.lead_time_days}d</td>
+      <td class="mono">${new Date(r.need_by_week).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</td>
+      <td class="mono ${urgency === 'red' ? 'order-urgent' : urgency === 'yellow' ? 'order-soon' : 'order-ok'}">${new Date(r.order_by_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</td>
+      <td class="mono">${Math.round(r.qty_needed).toLocaleString()}</td>
+      <td class="mono" style="font-weight:600;color:var(--accent)">${Math.round(r.suggested_order_qty).toLocaleString()}</td>
+      <td class="mono" style="color:${parseFloat(r.projected_balance) < 0 ? 'var(--red)' : 'var(--text2)'}">${Math.round(r.projected_balance).toLocaleString()}</td>
+      <td><span class="pill ${urgency}">${urgencyLabel}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function exportRecommendations() {
+  if (state.recommendations.length === 0) { toast('No data to export', 'error'); return; }
+  const headers = ['Component','Supplier','Lead Time (days)','Need By Week','Order By Date','Qty Needed','Suggested Order Qty','Projected Balance'];
+  const rows = state.recommendations.map(r => [
+    r.component_part_name, r.supplier_name, r.lead_time_days,
+    r.need_by_week, r.order_by_date, Math.round(r.qty_needed),
+    Math.round(r.suggested_order_qty), Math.round(r.projected_balance)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `PO_Recommendations_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  toast('Exported PO recommendations', 'success');
+}
+
+// ============================================================
+// FORECAST
+// ============================================================
+function renderForecast() {
+  renderForecastGrid();
+  renderMixTable();
+  renderForecastDetail();
+}
+
+function renderForecastGrid() {
+  const today = new Date();
+  const grid = document.getElementById('forecastGrid');
+  const months = [];
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    months.push(d);
+  }
+
+  grid.innerHTML = months.map((d, i) => {
+    const key = d.toISOString().split('T')[0];
+    const existing = state.forecastData.find(f => f.forecast_month && f.forecast_month.startsWith(key.substring(0,7)));
+    const val = existing ? existing.total_units : '';
+    const isCurrent = i === 0;
+    return `<div class="forecast-month-card ${isCurrent ? 'current-month' : ''}">
+      <div class="forecast-month-label">${MONTHS[d.getMonth()]} ${d.getFullYear()}</div>
+      <input type="number" class="form-input" id="fc_${key}" value="${val}"
+        placeholder="Units" min="0" style="font-family:var(--font-mono);font-size:18px;font-weight:600;padding:8px;text-align:center"
+        onchange="previewForecastDetail()">
+    </div>`;
+  }).join('');
+}
+
+async function saveForecast() {
+  showLoading('Saving forecast...');
+  try {
+    const today = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      const key = d.toISOString().split('T')[0];
+      const input = document.getElementById(`fc_${key}`);
+      if (!input || input.value === '') continue;
+      const units = parseInt(input.value);
+      if (isNaN(units)) continue;
+
+      // Check if exists
+      const existing = state.forecastData.find(f => f.forecast_month && f.forecast_month.startsWith(key.substring(0,7)));
+      if (existing) {
+        await sbPatch('monthly_forecast', `id=eq.${existing.id}`, {
+          total_units: units,
+          updated_at: new Date().toISOString()
+        });
+      } else {
+        await sbPost('monthly_forecast', {
+          forecast_month: key,
+          total_units: units,
+          entered_by: 'Supply Planner'
+        });
+      }
+    }
+    await loadForecast();
+    await generateFgForecast();
+    await loadNetRequirements();
+    await loadRecommendations();
+    toast('Forecast saved and propagated', 'success');
+    renderForecastDetail();
+  } catch(e) {
+    toast(`Error saving forecast: ${e.message}`, 'error');
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function generateFgForecast() {
+  // Get SKU mix (from overrides or defaults)
+  const mix = getMixPercentages();
+  if (Object.keys(mix).length === 0) return;
+
+  // Get FG item IDs
+  const fgItems = state.items.filter(i => i.item_type === 'FG' && ['J-OWS','J-OWX','J-WXS','J-STROBE'].includes(i.part_name));
+  if (fgItems.length === 0) return;
+
+  const today = new Date();
+  const weeklyEntries = [];
+
+  for (let m = 0; m < 6; m++) {
+    const monthStart = new Date(today.getFullYear(), today.getMonth() + m, 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + m + 1, 0);
+    const key = monthStart.toISOString().split('T')[0];
+    const existing = state.forecastData.find(f => f.forecast_month && f.forecast_month.startsWith(key.substring(0,7)));
+    if (!existing || !existing.total_units) continue;
+
+    const totalUnits = existing.total_units;
+
+    // Get weeks in this month (Monday-aligned)
+    const weeks = getWeeksInMonth(monthStart, monthEnd);
+
+    for (const fg of fgItems) {
+      const mixPct = mix[fg.part_name] || 0;
+      const monthlyFgUnits = totalUnits * mixPct;
+      const weeklyFgUnits = monthlyFgUnits / weeks.length;
+
+      for (const wk of weeks) {
+        weeklyEntries.push({
+          item_id: fg.item_id,
+          week_start_date: wk,
+          forecast_qty: Math.round(weeklyFgUnits * 100) / 100,
+          forecast_source: 'MONTHLY_BLOWDOWN',
+          entered_by: 'Supply Planner'
+        });
+      }
+    }
+  }
+
+  if (weeklyEntries.length === 0) return;
+
+  // Delete existing forecast for these weeks and reinsert
+  const minWeek = weeklyEntries.reduce((min, e) => e.week_start_date < min ? e.week_start_date : min, weeklyEntries[0].week_start_date);
+  await sbDelete('fg_forecast', `week_start_date=gte.${minWeek}&forecast_source=eq.MONTHLY_BLOWDOWN`);
+
+  // Insert in batches of 50
+  for (let i = 0; i < weeklyEntries.length; i += 50) {
+    await sbPost('fg_forecast', weeklyEntries.slice(i, i + 50));
+  }
+}
+
+function getWeeksInMonth(monthStart, monthEnd) {
+  const weeks = [];
+  // Find first Monday on or after monthStart
+  let d = new Date(monthStart);
+  const dow = d.getDay(); // 0=Sun,1=Mon
+  if (dow !== 1) {
+    d.setDate(d.getDate() + (dow === 0 ? 1 : 8 - dow));
+  }
+  while (d <= monthEnd) {
+    weeks.push(d.toISOString().split('T')[0]);
+    d = new Date(d);
+    d.setDate(d.getDate() + 7);
+  }
+  return weeks.length > 0 ? weeks : [monthStart.toISOString().split('T')[0]];
+}
+
+function getMixPercentages() {
+  // Use overrides if set, else use defaults based on our analysis
+  const defaults = {
+    'J-OWS': 0.458,
+    'J-OWX': 0.351,
+    'J-WXS': 0.104,
+    'J-STROBE': 0.022,
+  };
+  const result = {};
+  for (const [sku, pct] of Object.entries(defaults)) {
+    result[sku] = state.skuMixOverrides[sku] !== undefined ? state.skuMixOverrides[sku] : pct;
+  }
+  // Normalize to 100%
+  const total = Object.values(result).reduce((s, v) => s + v, 0);
+  if (total > 0) {
+    for (const k of Object.keys(result)) result[k] = result[k] / total;
+  }
+  return result;
+}
+
+function renderMixTable() {
+  const mix = getMixPercentages();
+  const skus = Object.keys(mix);
+  const div = document.getElementById('mixOverrideTable');
+
+  div.innerHTML = `<table>
+    <thead><tr>
+      <th>SKU</th>
+      <th>Trailing 90d Mix</th>
+      <th>Override %</th>
+      <th>Effective %</th>
+    </tr></thead>
+    <tbody>
+      ${skus.map(sku => {
+        const defaults = { 'J-OWS': 45.8, 'J-OWX': 35.1, 'J-WXS': 10.4, 'J-STROBE': 2.2 };
+        const override = state.skuMixOverrides[sku];
+        const effective = (mix[sku] * 100).toFixed(1);
+        return `<tr>
+          <td class="mono" style="font-weight:600">${sku}</td>
+          <td class="mono">${(defaults[sku] || 0).toFixed(1)}%</td>
+          <td>
+            <input type="number" class="inline-edit-input" value="${override !== undefined ? (override*100).toFixed(1) : ''}"
+              placeholder="—" min="0" max="100" step="0.1"
+              onchange="setMixOverride('${sku}', this.value)"
+              style="width:70px">
+          </td>
+          <td class="mono" style="color:${override !== undefined ? 'var(--yellow)' : 'var(--text2)'}">
+            ${effective}% ${override !== undefined ? '(override)' : ''}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+  <div style="padding:10px 14px;font-size:11px;color:var(--text3);font-family:var(--font-mono)">
+    Total: ${(Object.values(mix).reduce((s,v)=>s+v,0)*100).toFixed(1)}% — remaining mix goes to unlisted SKUs
+  </div>`;
+}
+
+function setMixOverride(sku, val) {
+  const pct = parseFloat(val);
+  if (!isNaN(pct) && pct >= 0) {
+    state.skuMixOverrides[sku] = pct / 100;
+  } else {
+    delete state.skuMixOverrides[sku];
+  }
+  renderMixTable();
+  previewForecastDetail();
+}
+
+function resetMixOverrides() {
+  state.skuMixOverrides = {};
+  renderMixTable();
+  previewForecastDetail();
+  toast('Mix reset to trailing 90-day actuals', 'info');
+}
+
+function previewForecastDetail() {
+  renderForecastDetail();
+}
+
+function renderForecastDetail() {
+  const tbody = document.getElementById('forecastDetailBody');
+
+  // Get 8 upcoming weeks
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  const dow = startOfWeek.getDay();
+  startOfWeek.setDate(startOfWeek.getDate() - (dow === 0 ? 6 : dow - 1)); // Monday
+
+  const weeks = [];
+  for (let i = 0; i < 8; i++) {
+    const wk = new Date(startOfWeek);
+    wk.setDate(wk.getDate() + (i * 7));
+    weeks.push(wk.toISOString().split('T')[0]);
+  }
+
+  // Update header dates
+  weeks.forEach((wk, i) => {
+    const el = document.getElementById(`wk${i+1}h`);
+    if (el) el.textContent = new Date(wk).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  });
+
+  // Group net requirements by component and week
+  const byComponent = {};
+  for (const row of state.netRequirements) {
+    if (!byComponent[row.component_part_name]) {
+      byComponent[row.component_part_name] = { category: row.category || '—', weeks: {} };
+    }
+    byComponent[row.component_part_name].weeks[row.week_start_date] = parseFloat(row.gross_req) || 0;
+  }
+
+  const components = Object.entries(byComponent);
+  if (components.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-title">Set forecast above and save to see component demand</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = components.map(([name, data]) => {
+    const weekCells = weeks.map(wk => {
+      const v = data.weeks[wk] || 0;
+      return `<td class="mono" style="color:${v > 0 ? 'var(--text)' : 'var(--text3)'}">${v > 0 ? Math.round(v).toLocaleString() : '—'}</td>`;
+    }).join('');
+    const total = weeks.reduce((s, wk) => s + (data.weeks[wk] || 0), 0);
+    return `<tr>
+      <td style="font-weight:500">${name}</td>
+      <td style="font-size:11px;color:var(--text2)">${data.category}</td>
+      ${weekCells}
+      <td class="mono" style="font-weight:600;color:var(--accent)">${Math.round(total).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// COMPONENTS
+// ============================================================
+function renderComponents() {
+  const tbody = document.getElementById('componentsBody');
+  const search = (document.getElementById('componentSearch')?.value || '').toLowerCase();
+
+  // Get component items only
+  let comps = state.items.filter(i => i.item_type === 'COMPONENT');
+
+  // Enrich with inventory and supplier data
+  const inventoryByItem = {};
+  for (const inv of state.inventory) {
+    inventoryByItem[inv.item_id] = inv;
+  }
+  const isMap = {};
+  for (const is of state.itemSuppliers) {
+    isMap[is.item_id] = is;
+  }
+  const supplierById = {};
+  for (const s of state.suppliers) {
+    supplierById[s.supplier_id] = s;
+  }
+
+  comps = comps.map(c => {
+    const inv = inventoryByItem[c.item_id];
+    const is = isMap[c.item_id];
+    const sup = is ? supplierById[is.supplier_id] : null;
+    return {
+      ...c,
+      onHand: inv ? parseFloat(inv.qty_on_hand) : 0,
+      leadDays: is?.lead_time_override || sup?.lead_time_days || 0,
+      safetyStockWeeks: is?.safety_stock_weeks || 4,
+      supplierName: sup?.supplier_name || '—',
+      supplierId: is?.supplier_id,
+      itemSupplierId: is?.item_supplier_id,
+    };
+  });
+
+  if (search) comps = comps.filter(c => c.part_name.toLowerCase().includes(search));
+  comps.sort((a, b) => b.leadDays - a.leadDays);
+
+  if (comps.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No components found</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = comps.map(c => {
+    const daysSupply = c.leadDays > 0 && c.onHand > 0
+      ? Math.round((c.onHand / Math.max(c.leadDays, 1)) * 5) : 0;
+    const status = c.onHand === 0 ? 'red' : daysSupply < c.leadDays ? 'yellow' : 'green';
+
+    return `<tr>
+      <td style="font-weight:500;max-width:280px">${c.part_name}</td>
+      <td style="font-size:11px;color:var(--text2)">${c.category || '—'}</td>
+      <td>
+        <input type="number" class="inline-edit-input" value="${c.leadDays}"
+          onchange="updateLeadTime(${c.item_id}, ${c.itemSupplierId || 'null'}, ${c.supplierId || 'null'}, this.value)"
+          min="0" title="Click to edit lead time">
+      </td>
+      <td>
+        <input type="number" class="inline-edit-input" value="${c.safetyStockWeeks}"
+          onchange="updateSafetyStock(${c.item_id}, ${c.itemSupplierId || 'null'}, this.value)"
+          min="0" step="0.5" title="Click to edit safety stock weeks">
+      </td>
+      <td style="color:var(--text2);font-size:12px">${c.supplierName}</td>
+      <td class="mono">${c.onHand.toLocaleString()}</td>
+      <td class="mono" style="color:${status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--text2)'}">${daysSupply}d</td>
+      <td><span class="pill ${status}">${status === 'red' ? 'CRITICAL' : status === 'yellow' ? 'LOW' : 'OK'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterComponents() {
+  renderComponents();
+}
+
+async function updateLeadTime(itemId, itemSupplierId, supplierId, val) {
+  const days = parseInt(val);
+  if (isNaN(days)) return;
+  try {
+    if (itemSupplierId) {
+      await sbPatch('item_suppliers', `item_supplier_id=eq.${itemSupplierId}`, { lead_time_override: days });
+    }
+    await loadNetRequirements();
+    await loadRecommendations();
+    toast(`Lead time updated`, 'success');
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  }
+}
+
+async function updateSafetyStock(itemId, itemSupplierId, val) {
+  const wks = parseFloat(val);
+  if (isNaN(wks)) return;
+  try {
+    if (itemSupplierId) {
+      await sbPatch('item_suppliers', `item_supplier_id=eq.${itemSupplierId}`, { safety_stock_weeks: wks });
+    }
+    await loadNetRequirements();
+    toast(`Safety stock updated`, 'success');
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  }
+}
+
+// ============================================================
+// FILE UPLOADS
+// ============================================================
+function triggerUpload(type) {
+  document.getElementById(`upload-${type}`).click();
+}
+
+function handleDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('dragover');
+}
+function handleDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('dragover');
+}
+function handleDrop(e, type) {
+  e.preventDefault();
+  const zoneId = `${type}Zone`;
+  document.getElementById(zoneId).classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file, type);
+}
+
+function handleFileUpload(e, type) {
+  const file = e.target.files[0];
+  if (file) processFile(file, type);
+}
+
+function processFile(file, type) {
+  showLoading(`Parsing ${file.name}...`);
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (type === 'mfg') await processMfgQueue(data, file.name);
+      if (type === 'inv') await processInventory(data, file.name);
+      if (type === 'po') await processPurchaseOrders(data, file.name);
+
+      await refreshAllData();
+    } catch(err) {
+      toast(`Upload error: ${err.message}`, 'error');
+      console.error(err);
+    } finally {
+      hideLoading();
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function processMfgQueue(data, filename) {
+  const today = new Date().toISOString().split('T')[0];
+  const rows = [];
+  let skipped = 0;
+
+  for (const row of data) {
+    const model = row['Model'] || row['model'] || '';
+    const completeBy = row['Complete By'] || row['complete_by'] || '';
+    if (!model) { skipped++; continue; }
+
+    const speakers = row['# Speakers'] || row['num_speakers'] || '';
+    const numSpk = parseInt(String(speakers).replace(/\D/g,'')) || 0;
+
+    rows.push({
+      upload_date: today,
+      order_ref: `${row['Customer'] || ''} — ${row['Site'] || ''}`.trim(),
+      model_sku: String(model).replace(/^J-/, ''),
+      num_speakers: numSpk,
+      complete_by: completeBy ? new Date(completeBy).toISOString().split('T')[0] : null,
+      ship_flag: String(row['Ship?'] || '').toLowerCase() === 'yes',
+    });
+  }
+
+  if (rows.length === 0) throw new Error('No valid rows found in Manufacturing Queue file');
+
+  // Clear today's records and reinsert
+  await sbDelete('manufacturing_queue_snapshot', `upload_date=eq.${today}`);
+  for (let i = 0; i < rows.length; i += 50) {
+    await sbPost('manufacturing_queue_snapshot', rows.slice(i, i+50));
+  }
+
+  document.getElementById('mfg-status').textContent = `✓ ${rows.length} orders loaded (${skipped} skipped) — ${today}`;
+  document.getElementById('mfg-status').style.color = 'var(--green)';
+  toast(`Manufacturing queue: ${rows.length} orders loaded`, 'success');
+}
+
+async function processInventory(data, filename) {
+  const today = new Date().toISOString().split('T')[0];
+  const rows = [];
+  let unmatched = [];
+
+  // Build name→item_id map
+  const nameMap = {};
+  for (const item of state.items) {
+    nameMap[item.part_name.toLowerCase().trim()] = item.item_id;
+  }
+
+  for (const row of data) {
+    const name = String(row['Internal Name (read only)'] || row['Internal Name'] || row['name'] || '').trim();
+    const stock = row['Current Stock'] || row['current_stock'] || row['qty'] || 0;
+    const status = row['Status'] || row['status'] || 'Active';
+
+    if (!name || String(status).toLowerCase().includes('obsolete')) continue;
+
+    const itemId = nameMap[name.toLowerCase()];
+    if (!itemId) { unmatched.push(name); continue; }
+
+    rows.push({
+      item_id: itemId,
+      snapshot_date: today,
+      qty_on_hand: parseFloat(String(stock).replace(/,/g,'')) || 0,
+    });
+  }
+
+  if (rows.length === 0) throw new Error('No matching components found. Check that component names match exactly.');
+
+  // Remove today's snapshot and reinsert
+  await sbDelete('inventory_snapshot', `snapshot_date=eq.${today}`);
+  for (let i = 0; i < rows.length; i += 50) {
+    await sbPost('inventory_snapshot', rows.slice(i, i+50));
+  }
+
+  const msg = `✓ ${rows.length} components updated${unmatched.length > 0 ? ` (${unmatched.length} unmatched)` : ''} — ${today}`;
+  document.getElementById('inv-status').textContent = msg;
+  document.getElementById('inv-status').style.color = 'var(--green)';
+  if (unmatched.length > 0) {
+    toast(`${unmatched.length} components not matched: ${unmatched.slice(0,3).join(', ')}${unmatched.length > 3 ? '...' : ''}`, 'info');
+  } else {
+    toast(`Inventory: ${rows.length} components updated`, 'success');
+  }
+}
+
+async function processPurchaseOrders(data, filename) {
+  const today = new Date().toISOString().split('T')[0];
+  const rows = [];
+  let unmatched = [];
+
+  const nameMap = {};
+  for (const item of state.items) {
+    nameMap[item.part_name.toLowerCase().trim()] = item.item_id;
+  }
+  const supplierMap = {};
+  for (const s of state.suppliers) {
+    supplierMap[s.supplier_name.toLowerCase().trim()] = s.supplier_id;
+  }
+
+  for (const row of data) {
+    const poNum = row['PO Number'] || row['po_number'] || '';
+    const compName = String(row['Component Name'] || row['component_name'] || row['Components Purchased'] || '').trim();
+    const qty = parseFloat(row['Quantity Ordered'] || row['qty_ordered'] || row['Qty Ordered'] || 0);
+    const receiptDate = row['Expected Receipt Date'] || row['expected_receipt_date'] || '';
+    const vendor = String(row['Vendor'] || row['vendor'] || '').trim();
+    const status = row['Status'] || row['status'] || 'OPEN';
+
+    if (!compName || !poNum) continue;
+
+    const itemId = nameMap[compName.toLowerCase()];
+    if (!itemId) { unmatched.push(compName); continue; }
+
+    const supplierId = supplierMap[vendor.toLowerCase()] || null;
+    let receiptDateStr = null;
+    if (receiptDate) {
+      try { receiptDateStr = new Date(receiptDate).toISOString().split('T')[0]; } catch(e) {}
+    }
+    if (!receiptDateStr) {
+      // Derive from lead time
+      const is = state.itemSuppliers.find(x => x.item_id === itemId);
+      const sup = is ? state.suppliers.find(s => s.supplier_id === is.supplier_id) : null;
+      const leadDays = is?.lead_time_override || sup?.lead_time_days || 30;
+      const d = new Date();
+      d.setDate(d.getDate() + leadDays);
+      receiptDateStr = d.toISOString().split('T')[0];
+    }
+
+    rows.push({
+      po_number: String(poNum),
+      line_number: rows.filter(r => r.po_number === String(poNum)).length + 1,
+      item_id: itemId,
+      supplier_id: supplierId,
+      qty_ordered: qty,
+      qty_received: 0,
+      qty_outstanding: qty,
+      order_date: today,
+      expected_receipt_date: receiptDateStr,
+      po_status: 'OPEN',
+    });
+  }
+
+  if (rows.length === 0 && unmatched.length > 0) {
+    throw new Error(`No components matched. First unmatched: ${unmatched[0]}`);
+  }
+
+  // Replace open POs
+  await sbDelete('open_purchase_orders', `po_status=eq.OPEN`);
+  if (rows.length > 0) {
+    for (let i = 0; i < rows.length; i += 50) {
+      await sbPost('open_purchase_orders', rows.slice(i, i+50));
+    }
+  }
+
+  const msg = `✓ ${rows.length} PO lines loaded${unmatched.length > 0 ? ` (${unmatched.length} unmatched)` : ''} — ${today}`;
+  document.getElementById('po-status').textContent = msg;
+  document.getElementById('po-status').style.color = 'var(--green)';
+  toast(`Open POs: ${rows.length} lines loaded`, 'success');
+}
+
+// ============================================================
+// UPLOAD HISTORY
+// ============================================================
+async function renderUploadHistory() {
+  // Summarize from snapshot tables
+  const tbody = document.getElementById('uploadHistoryBody');
+  try {
+    const [invSnaps, mfgSnaps] = await Promise.all([
+      sbGet('inventory_snapshot', 'select=snapshot_date,uploaded_at&order=uploaded_at.desc&limit=20'),
+      sbGet('manufacturing_queue_snapshot', 'select=upload_date,uploaded_at&order=uploaded_at.desc&limit=20'),
+    ]);
+
+    const history = [];
+    const invDates = [...new Set(invSnaps.map(r => r.snapshot_date))];
+    for (const d of invDates) {
+      const count = invSnaps.filter(r => r.snapshot_date === d).length;
+      history.push({ date: d, type: 'Inventory Snapshot', records: count, status: 'success', by: 'Supply Planner' });
+    }
+    const mfgDates = [...new Set(mfgSnaps.map(r => r.upload_date))];
+    for (const d of mfgDates) {
+      const count = mfgSnaps.filter(r => r.upload_date === d).length;
+      history.push({ date: d, type: 'Manufacturing Queue', records: count, status: 'success', by: 'Supply Planner' });
+    }
+
+    history.sort((a, b) => b.date.localeCompare(a.date));
+
+    if (history.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="empty-title">No upload history yet</div><div class="empty-text">Upload your first files using the dropzones above</div></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = history.map(h => `<tr>
+      <td class="mono">${h.date}</td>
+      <td>${h.type}</td>
+      <td class="mono">${h.records}</td>
+      <td><span class="pill green">Success</span></td>
+      <td style="color:var(--text2)">${h.by}</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:20px">Could not load history</td></tr>`;
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  showLoading('Connecting to database...');
+  try {
+    await refreshAllData();
+    // Init forecast grid
+    renderForecastGrid();
+  } catch(e) {
+    hideLoading();
+    toast(`Connection error: ${e.message}. Check your Supabase settings.`, 'error');
+    console.error(e);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
