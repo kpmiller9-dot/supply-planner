@@ -551,6 +551,16 @@ select.form-input option { background: var(--surface2); }
 .order-soon { color: var(--yellow); }
 .order-ok { color: var(--green); }
 
+/* SORTABLE HEADERS */
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+thead th.sortable:hover { color: var(--text2); background: var(--surface3); }
+thead th.sortable .sort-icon { margin-left: 4px; color: var(--text3); font-size: 9px; }
+thead th.sortable.sort-asc .sort-icon::after { content: ' ▲'; color: var(--pw-blue); }
+thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw-blue); }
 /* COVERAGE BAR */
 .coverage-wrap { display: flex; align-items: center; gap: 8px; }
 .coverage-label { font-family: var(--font-mono); font-size: 11px; min-width: 36px; }
@@ -662,14 +672,14 @@ select.form-input option { background: var(--surface2); }
             <table id="dashboardTable">
               <thead>
                 <tr>
-                  <th>Component</th>
-                  <th>Category</th>
-                  <th>On Hand</th>
-                  <th>Coverage</th>
-                  <th>Lead Time</th>
-                  <th>Avg Wkly Usage (12w)</th>
-                  <th>Projected Stockout</th>
-                  <th>Order By</th>
+                  <th class="sortable" onclick="sortTable('dashboard','name',this)">Component<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','category',this)">Category<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','onHand',this)">On Hand<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','coverageWeeks',this)">Coverage<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','leadDays',this)">Lead Time<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','avgWeeklyUsage',this)">Avg Wkly Usage (12w)<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','stockoutDate',this)">Projected Stockout<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('dashboard','daysUntilOrderBy',this)">Order By<span class="sort-icon"></span></th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -689,25 +699,28 @@ select.form-input option { background: var(--surface2); }
               <div class="card-title">Recommended Purchase Orders</div>
               <div class="card-subtitle">Generated from net requirements — sorted by order-by date</div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="exportRecommendations()">↓ Export CSV</button>
+            <div class="flex gap-8">
+              <select class="form-input" style="width:180px;padding:6px 10px" id="filterSupplier" onchange="renderRecommendations()">
+                <option value="">All Suppliers</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="exportRecommendations()">↓ Export CSV</button>
+            </div>
           </div>
           <div class="table-wrap">
-            <table>
+            <table id="recommendationsTable">
               <thead>
                 <tr>
-                  <th>Component</th>
-                  <th>Supplier</th>
-                  <th>Lead Time</th>
-                  <th>Need By</th>
-                  <th>Order By</th>
-                  <th>Qty Needed</th>
-                  <th>Suggested Qty</th>
-                  <th>Proj. Balance</th>
+                  <th class="sortable" onclick="sortTable('recommendations','component_part_name',this)">Component<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('recommendations','supplier_name',this)">Supplier<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('recommendations','lead_time_days',this)">Lead Time<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('recommendations','need_by_week',this)">Need By<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('recommendations','order_by_date',this)">Order By<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('recommendations','suggested_order_qty',this)">Suggested Qty<span class="sort-icon"></span></th>
                   <th>Urgency</th>
                 </tr>
               </thead>
               <tbody id="recommendationsBody">
-                <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No recommendations loaded</div><div class="empty-text">Upload forecast and inventory data to generate recommendations</div></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No recommendations loaded</div><div class="empty-text">Upload forecast and inventory data to generate recommendations</div></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -998,16 +1011,17 @@ select.form-input option { background: var(--surface2); }
             </div>
           </div>
           <div class="table-wrap">
-            <table>
+            <table id="componentsTable">
               <thead>
                 <tr>
-                  <th>Component</th>
-                  <th>Category</th>
-                  <th>Lead Time (days)</th>
-                  <th>Safety Stock (wks)</th>
-                  <th>Primary Supplier</th>
-                  <th>On Hand</th>
-                  <th>Days Supply</th>
+                  <th class="sortable" onclick="sortTable('components','part_name',this)">Component<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','category',this)">Category<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','leadDays',this)">Lead Time (days)<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','safetyStockWeeks',this)">Safety Stock (wks)<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','moq',this)">MOQ<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','supplierName',this)">Primary Supplier<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','onHand',this)">On Hand<span class="sort-icon"></span></th>
+                  <th class="sortable" onclick="sortTable('components','daysSupply',this)">Days Supply<span class="sort-icon"></span></th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -1337,12 +1351,16 @@ function renderDashboard() {
     return r;
   });
 
-  // Sort by urgency
-  rows.sort((a, b) => {
-    const order = { red: 0, yellow: 1, green: 2 };
-    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-    return (a.daysUntilOrderBy || 999) - (b.daysUntilOrderBy || 999);
-  });
+  // Sort — default by urgency, then by user sort if set
+  if (sortState.dashboard.col) {
+    rows = applySortToRows(rows, 'dashboard');
+  } else {
+    rows.sort((a, b) => {
+      const order = { red: 0, yellow: 1, green: 2 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      return (a.daysUntilOrderBy || 999) - (b.daysUntilOrderBy || 999);
+    });
+  }
 
   // Filter
   if (filter) rows = rows.filter(r => r.status === filter);
@@ -1447,40 +1465,57 @@ function renderDashboard() {
 // ============================================================
 function renderRecommendations() {
   const tbody = document.getElementById('recommendationsBody');
+  const filterSupplier = document.getElementById('filterSupplier')?.value || '';
   const today = new Date();
 
-  if (state.recommendations.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No recommendations available</div><div class="empty-text">Set your monthly forecast and ensure inventory data is uploaded</div></div></td></tr>`;
+  // Populate supplier filter dropdown
+  const supplierSelect = document.getElementById('filterSupplier');
+  if (supplierSelect && state.recommendations.length > 0) {
+    const suppliers = [...new Set(state.recommendations.map(r => r.supplier_name).filter(Boolean))].sort();
+    const current = supplierSelect.value;
+    supplierSelect.innerHTML = `<option value="">All Suppliers</option>` +
+      suppliers.map(s => `<option value="${s}" ${s === current ? 'selected' : ''}>${s}</option>`).join('');
+  }
+
+  let recs = [...state.recommendations];
+  if (filterSupplier) recs = recs.filter(r => r.supplier_name === filterSupplier);
+
+  // Apply sort
+  if (sortState.recommendations.col) {
+    recs = applySortToRows(recs, 'recommendations');
+  }
+
+  if (recs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">${state.recommendations.length === 0 ? 'No recommendations available — set forecast and upload inventory' : 'No recommendations for selected supplier'}</div></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = state.recommendations.map(r => {
+  tbody.innerHTML = recs.map(r => {
     const orderBy = new Date(r.order_by_date);
     const daysUntil = Math.round((orderBy - today) / 86400000);
-    const urgency = daysUntil <= 0 ? 'red' : daysUntil <= 14 ? 'yellow' : 'green';
-    const urgencyLabel = daysUntil <= 0 ? 'ORDER NOW' : daysUntil <= 14 ? 'ORDER SOON' : 'PLAN';
+    const urgency = daysUntil < 0 ? 'red' : daysUntil <= 14 ? 'yellow' : 'green';
+    const orderByLabel = daysUntil < 0
+      ? `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px">OVERDUE</span>`
+      : `<span class="mono" style="color:${urgency === 'yellow' ? 'var(--yellow)' : 'var(--text)'}">${orderBy.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
 
     return `<tr>
       <td><div style="font-weight:500">${r.component_part_name}</div><div style="font-size:11px;color:var(--text3)">${r.category || ''}</div></td>
       <td style="color:var(--text2)">${r.supplier_name}</td>
       <td class="mono">${r.lead_time_days}d</td>
-      <td class="mono">${new Date(r.need_by_week).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</td>
-      <td class="mono ${urgency === 'red' ? 'order-urgent' : urgency === 'yellow' ? 'order-soon' : 'order-ok'}">${new Date(r.order_by_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</td>
-      <td class="mono">${Math.round(r.qty_needed).toLocaleString()}</td>
+      <td class="mono">${new Date(r.need_by_week).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</td>
+      <td>${orderByLabel}</td>
       <td class="mono" style="font-weight:600;color:var(--pw-blue)">${Math.round(r.suggested_order_qty).toLocaleString()}</td>
-      <td class="mono" style="color:${parseFloat(r.projected_balance) < 0 ? 'var(--red)' : 'var(--text2)'}">${Math.round(r.projected_balance).toLocaleString()}</td>
-      <td><span class="pill ${urgency}">${urgencyLabel}</span></td>
+      <td><span class="pill ${urgency}">${urgency === 'red' ? 'ORDER NOW' : urgency === 'yellow' ? 'ORDER SOON' : 'PLAN'}</span></td>
     </tr>`;
   }).join('');
 }
 
 function exportRecommendations() {
   if (state.recommendations.length === 0) { toast('No data to export', 'error'); return; }
-  const headers = ['Component','Supplier','Lead Time (days)','Need By Week','Order By Date','Qty Needed','Suggested Order Qty','Projected Balance'];
+  const headers = ['Component','Supplier','Lead Time (days)','Need By Week','Order By Date','Suggested Order Qty'];
   const rows = state.recommendations.map(r => [
     r.component_part_name, r.supplier_name, r.lead_time_days,
-    r.need_by_week, r.order_by_date, Math.round(r.qty_needed),
-    Math.round(r.suggested_order_qty), Math.round(r.projected_balance)
+    r.need_by_week, r.order_by_date, Math.round(r.suggested_order_qty)
   ]);
   const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -1607,9 +1642,15 @@ async function generateFgForecast() {
 
   if (weeklyEntries.length === 0) return;
 
-  // Delete existing forecast for these weeks and reinsert
+  // Delete ALL existing forecast rows for these weeks (regardless of source) before reinserting
   const minWeek = weeklyEntries.reduce((min, e) => e.week_start_date < min ? e.week_start_date : min, weeklyEntries[0].week_start_date);
-  await sbDelete('fg_forecast', `week_start_date=gte.${minWeek}&forecast_source=eq.MONTHLY_BLOWDOWN`);
+  const maxWeek = weeklyEntries.reduce((max, e) => e.week_start_date > max ? e.week_start_date : max, weeklyEntries[0].week_start_date);
+
+  // Delete in chunks per item_id to avoid broad deletes
+  const itemIds = [...new Set(weeklyEntries.map(e => e.item_id))];
+  for (const itemId of itemIds) {
+    await sbDelete('fg_forecast', `item_id=eq.${itemId}&week_start_date=gte.${minWeek}&week_start_date=lte.${maxWeek}`);
+  }
 
   // Insert in batches of 50
   for (let i = 0; i < weeklyEntries.length; i += 50) {
@@ -1766,73 +1807,113 @@ function renderForecastDetail() {
 }
 
 // ============================================================
+// SORTING ENGINE
+// ============================================================
+const sortState = { dashboard: { col: null, dir: 1 }, components: { col: null, dir: 1 }, recommendations: { col: null, dir: 1 } };
+let dashboardRows = [];
+let componentsRows = [];
+
+function sortTable(table, col, th) {
+  const s = sortState[table];
+  if (s.col === col) { s.dir *= -1; } else { s.col = col; s.dir = 1; }
+
+  // Update header classes
+  const tableEl = document.getElementById(table === 'dashboard' ? 'dashboardTable' : table === 'components' ? 'componentsTable' : 'recommendationsTable');
+  if (tableEl) {
+    tableEl.querySelectorAll('th.sortable').forEach(h => { h.classList.remove('sort-asc','sort-desc'); });
+    th.classList.add(s.dir === 1 ? 'sort-asc' : 'sort-desc');
+  }
+
+  if (table === 'dashboard') renderDashboard();
+  if (table === 'components') renderComponents();
+  if (table === 'recommendations') renderRecommendations();
+}
+
+function applySortToRows(rows, table) {
+  const s = sortState[table];
+  if (!s.col) return rows;
+  return [...rows].sort((a, b) => {
+    let av = a[s.col], bv = b[s.col];
+    if (av === null || av === undefined) av = '';
+    if (bv === null || bv === undefined) bv = '';
+    if (typeof av === 'string') return s.dir * av.localeCompare(bv);
+    return s.dir * (av - bv);
+  });
+}
+
+// ============================================================
 // COMPONENTS
 // ============================================================
 function renderComponents() {
   const tbody = document.getElementById('componentsBody');
   const search = (document.getElementById('componentSearch')?.value || '').toLowerCase();
 
-  // Get component items only
   let comps = state.items.filter(i => i.item_type === 'COMPONENT');
 
-  // Enrich with inventory and supplier data
   const inventoryByItem = {};
-  for (const inv of state.inventory) {
-    inventoryByItem[inv.item_id] = inv;
-  }
+  for (const inv of state.inventory) inventoryByItem[inv.item_id] = inv;
   const isMap = {};
-  for (const is of state.itemSuppliers) {
-    isMap[is.item_id] = is;
-  }
+  for (const is of state.itemSuppliers) isMap[is.item_id] = is;
   const supplierById = {};
-  for (const s of state.suppliers) {
-    supplierById[s.supplier_id] = s;
-  }
+  for (const s of state.suppliers) supplierById[s.supplier_id] = s;
 
   comps = comps.map(c => {
     const inv = inventoryByItem[c.item_id];
     const is = isMap[c.item_id];
     const sup = is ? supplierById[is.supplier_id] : null;
+    const onHand = inv ? parseFloat(inv.qty_on_hand) : 0;
+    const leadDays = is?.lead_time_override || sup?.lead_time_days || 0;
+    const daysSupply = leadDays > 0 && onHand > 0 ? Math.round((onHand / Math.max(leadDays, 1)) * 5) : 0;
     return {
       ...c,
-      onHand: inv ? parseFloat(inv.qty_on_hand) : 0,
-      leadDays: is?.lead_time_override || sup?.lead_time_days || 0,
+      onHand,
+      leadDays,
       safetyStockWeeks: is?.safety_stock_weeks || 4,
+      moq: is?.moq_override || sup?.moq || 1,
       supplierName: sup?.supplier_name || '—',
       supplierId: is?.supplier_id,
       itemSupplierId: is?.item_supplier_id,
+      daysSupply,
     };
   });
 
-  if (search) comps = comps.filter(c => c.part_name.toLowerCase().includes(search));
-  comps.sort((a, b) => b.leadDays - a.leadDays);
+  if (search) comps = comps.filter(c => c.part_name.toLowerCase().includes(search) || (c.supplierName || '').toLowerCase().includes(search));
+
+  // Default sort by lead time desc if no sort set
+  if (!sortState.components.col) {
+    comps.sort((a, b) => b.leadDays - a.leadDays);
+  } else {
+    comps = applySortToRows(comps, 'components');
+  }
 
   if (comps.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No components found</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-title">No components found</div></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = comps.map(c => {
-    const daysSupply = c.leadDays > 0 && c.onHand > 0
-      ? Math.round((c.onHand / Math.max(c.leadDays, 1)) * 5) : 0;
-    const status = c.onHand === 0 ? 'red' : daysSupply < c.leadDays ? 'yellow' : 'green';
-
+    const status = c.onHand === 0 ? 'red' : c.daysSupply < c.leadDays ? 'yellow' : 'green';
     return `<tr>
-      <td style="font-weight:500;max-width:280px">${c.part_name}</td>
+      <td style="font-weight:500;max-width:260px">${c.part_name}</td>
       <td style="font-size:11px;color:var(--text2)">${c.category || '—'}</td>
       <td>
         <input type="number" class="inline-edit-input" value="${c.leadDays}"
           onchange="updateLeadTime(${c.item_id}, ${c.itemSupplierId || 'null'}, ${c.supplierId || 'null'}, this.value)"
-          min="0" title="Click to edit lead time">
+          min="0" title="Edit lead time">
       </td>
       <td>
         <input type="number" class="inline-edit-input" value="${c.safetyStockWeeks}"
           onchange="updateSafetyStock(${c.item_id}, ${c.itemSupplierId || 'null'}, this.value)"
-          min="0" step="0.5" title="Click to edit safety stock weeks">
+          min="0" step="0.5" title="Edit safety stock weeks">
+      </td>
+      <td>
+        <input type="number" class="inline-edit-input" value="${c.moq}"
+          onchange="updateMOQ(${c.item_id}, ${c.itemSupplierId || 'null'}, ${c.supplierId || 'null'}, this.value)"
+          min="1" step="1" title="Edit minimum order quantity">
       </td>
       <td style="color:var(--text2);font-size:12px">${c.supplierName}</td>
       <td class="mono">${c.onHand.toLocaleString()}</td>
-      <td class="mono" style="color:${status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--text2)'}">${daysSupply}d</td>
+      <td class="mono" style="color:${status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--text2)'}">${c.daysSupply}d</td>
       <td><span class="pill ${status}">${status === 'red' ? 'CRITICAL' : status === 'yellow' ? 'LOW' : 'OK'}</span></td>
     </tr>`;
   }).join('');
@@ -1866,6 +1947,22 @@ async function updateSafetyStock(itemId, itemSupplierId, val) {
     }
     await loadNetRequirements();
     toast(`Safety stock updated`, 'success');
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  }
+}
+
+async function updateMOQ(itemId, itemSupplierId, supplierId, val) {
+  const moq = parseFloat(val);
+  if (isNaN(moq) || moq < 1) return;
+  try {
+    if (itemSupplierId) {
+      await sbPatch('item_suppliers', `item_supplier_id=eq.${itemSupplierId}`, { moq_override: moq });
+    } else if (supplierId) {
+      await sbPatch('suppliers', `supplier_id=eq.${supplierId}`, { moq });
+    }
+    await loadRecommendations();
+    toast(`MOQ updated`, 'success');
   } catch(e) {
     toast(`Error: ${e.message}`, 'error');
   }
