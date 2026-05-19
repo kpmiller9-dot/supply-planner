@@ -1757,24 +1757,32 @@ function previewForecastDetail() {
 function renderForecastDetail() {
   const tbody = document.getElementById('forecastDetailBody');
 
-  // Get 8 upcoming weeks
+  // Get actual weeks from net requirements data (don't generate — use what the view returns)
+  const allWeeks = [...new Set(state.netRequirements.map(r => r.week_start_date))].sort();
   const today = new Date();
-  const startOfWeek = new Date(today);
-  const dow = startOfWeek.getDay();
-  startOfWeek.setDate(startOfWeek.getDate() - (dow === 0 ? 6 : dow - 1)); // Monday
+  // Take the next 8 upcoming weeks from the view's actual dates
+  const weeks = allWeeks.filter(w => new Date(w) >= today).slice(0, 8);
 
-  const weeks = [];
-  for (let i = 0; i < 8; i++) {
-    const wk = new Date(startOfWeek);
-    wk.setDate(wk.getDate() + (i * 7));
-    weeks.push(wk.toISOString().split('T')[0]);
+  if (weeks.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-title">Set forecast above and save to see component demand</div></div></td></tr>`;
+    // Clear headers
+    for (let i = 1; i <= 8; i++) {
+      const el = document.getElementById(`wk${i}h`);
+      if (el) el.textContent = `Wk ${i}`;
+    }
+    return;
   }
 
-  // Update header dates
+  // Update header dates to match actual view weeks
   weeks.forEach((wk, i) => {
     const el = document.getElementById(`wk${i+1}h`);
-    if (el) el.textContent = new Date(wk).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    if (el) el.textContent = new Date(wk + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
   });
+  // Clear unused week headers
+  for (let i = weeks.length; i < 8; i++) {
+    const el = document.getElementById(`wk${i+1}h`);
+    if (el) el.textContent = `—`;
+  }
 
   // Group net requirements by component and week
   const byComponent = {};
@@ -1782,10 +1790,13 @@ function renderForecastDetail() {
     if (!byComponent[row.component_part_name]) {
       byComponent[row.component_part_name] = { category: row.category || '—', weeks: {} };
     }
-    byComponent[row.component_part_name].weeks[row.week_start_date] = parseFloat(row.gross_req) || 0;
+    // Sum across FG SKUs for the same component/week
+    byComponent[row.component_part_name].weeks[row.week_start_date] =
+      (byComponent[row.component_part_name].weeks[row.week_start_date] || 0) + (parseFloat(row.gross_req) || 0);
   }
 
-  const components = Object.entries(byComponent);
+  const components = Object.entries(byComponent).sort((a, b) => a[0].localeCompare(b[0]));
+
   if (components.length === 0) {
     tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-title">Set forecast above and save to see component demand</div></div></td></tr>`;
     return;
@@ -1796,11 +1807,15 @@ function renderForecastDetail() {
       const v = data.weeks[wk] || 0;
       return `<td class="mono" style="color:${v > 0 ? 'var(--text)' : 'var(--text3)'}">${v > 0 ? Math.round(v).toLocaleString() : '—'}</td>`;
     }).join('');
+    // Pad missing weeks
+    const paddingCells = weeks.length < 8
+      ? Array(8 - weeks.length).fill(`<td class="mono" style="color:var(--text3)">—</td>`).join('')
+      : '';
     const total = weeks.reduce((s, wk) => s + (data.weeks[wk] || 0), 0);
     return `<tr>
       <td style="font-weight:500">${name}</td>
       <td style="font-size:11px;color:var(--text2)">${data.category}</td>
-      ${weekCells}
+      ${weekCells}${paddingCells}
       <td class="mono" style="font-weight:600;color:var(--pw-blue)">${Math.round(total).toLocaleString()}</td>
     </tr>`;
   }).join('');
