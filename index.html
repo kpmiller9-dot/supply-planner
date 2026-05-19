@@ -669,12 +669,12 @@ select.form-input option { background: var(--surface2); }
                   <th>Lead Time</th>
                   <th>Avg Wkly Usage (12w)</th>
                   <th>Projected Stockout</th>
-                  <th>Net Req.</th>
+                  <th>Order By</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody id="dashboardBody">
-                <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">Loading coverage data...</div></div></td></tr>
+                <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">Loading coverage data...</div></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1376,20 +1376,33 @@ function renderDashboard() {
     const coveragePct = Math.min(100, (r.coverageWeeks / 20) * 100);
     const coverageColor = r.status;
 
-    // Stockout week display
+    // Stockout cell — just the date, or OUT if zero on hand
     let stockoutCell;
-    if (r.stockoutDate) {
+    if (r.onHand === 0) {
+      stockoutCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:13px;letter-spacing:1px">OUT</span>`;
+    } else if (r.stockoutDate) {
       const stockoutD = new Date(r.stockoutDate);
-      const weeksUntilStockout = Math.round((stockoutD - today) / 604800000);
-      // Color based on order-by date (stockout - lead time) vs today
       const color = r.status === 'red' ? 'var(--red)' : r.status === 'yellow' ? 'var(--yellow)' : 'var(--green)';
-      const orderByLabel = r.orderByDate
-        ? `Order by ${r.orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
-        : '';
-      stockoutCell = `<div style="font-weight:600;color:${color}">${stockoutD.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</div>
-        <div style="font-size:10px;color:${color};font-family:var(--font-mono)">${weeksUntilStockout <= 0 ? 'THIS WEEK' : `in ${weeksUntilStockout}w`}${orderByLabel ? ' · ' + orderByLabel : ''}</div>`;
+      stockoutCell = `<span style="font-family:var(--font-mono);font-weight:600;color:${color}">${stockoutD.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
     } else {
-      stockoutCell = `<span style="color:var(--text3);font-size:12px">No stockout forecast</span>`;
+      stockoutCell = `<span style="color:var(--text3);font-size:12px">—</span>`;
+    }
+
+    // Order By cell — show date or "Overdue" if in the past
+    let orderByCell;
+    if (r.onHand === 0) {
+      orderByCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px">OVERDUE</span>`;
+    } else if (r.orderByDate) {
+      const isOverdue = r.daysUntilOrderBy < 0;
+      const isSoon = r.daysUntilOrderBy >= 0 && r.daysUntilOrderBy <= 14;
+      if (isOverdue) {
+        orderByCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px;letter-spacing:0.5px">OVERDUE</span>`;
+      } else {
+        const color = isSoon ? 'var(--yellow)' : 'var(--green)';
+        orderByCell = `<span style="font-family:var(--font-mono);color:${color}">${r.orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
+      }
+    } else {
+      orderByCell = `<span style="color:var(--text3);font-size:12px">—</span>`;
     }
 
     // Avg weekly usage
@@ -1410,7 +1423,7 @@ function renderDashboard() {
       <td class="mono">${r.leadDays}d</td>
       <td>${avgUsage}</td>
       <td>${stockoutCell}</td>
-      <td class="mono" style="color:${r.maxNetReq > 0 ? 'var(--red)' : 'var(--text3)'}">${r.maxNetReq > 0 ? r.maxNetReq.toLocaleString() : '—'}</td>
+      <td>${orderByCell}</td>
       <td><span class="pill ${r.status}">${r.status === 'red' ? 'ORDER NOW' : r.status === 'yellow' ? 'ORDER SOON' : 'COVERED'}</span></td>
     </tr>`;
   }).join('');
