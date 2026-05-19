@@ -2100,8 +2100,12 @@ async function processInventory(data, filename) {
 
   if (rows.length === 0) throw new Error('No matching components found. Check that component names match exactly.');
 
-  // Remove today's snapshot and reinsert
+  // Delete today's snapshot first, then insert fresh
   await sbDelete('inventory_snapshot', `snapshot_date=eq.${today}`);
+
+  // Small delay to ensure delete completes before insert
+  await new Promise(r => setTimeout(r, 300));
+
   for (let i = 0; i < rows.length; i += 50) {
     await sbPost('inventory_snapshot', rows.slice(i, i+50));
   }
