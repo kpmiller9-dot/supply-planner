@@ -1317,9 +1317,22 @@ function renderDashboard() {
       else if (daysUntilOrderBy <= 14) r.status = 'yellow';
       else r.status = 'green';
     } else {
+      // No shortage in forecast window — still calculate a future order date
+      // based on how long on-hand stock will last at current usage pace
       r.status = 'green';
-      r.daysUntilOrderBy = 999;
-      r.orderByDate = null;
+      if (r.avgWeeklyUsage > 0 && r.onHand > 0) {
+        const weeksOfStock = r.onHand / r.avgWeeklyUsage;
+        const projectedRunout = new Date(today);
+        projectedRunout.setDate(projectedRunout.getDate() + Math.round(weeksOfStock * 7));
+        const orderByDate = new Date(projectedRunout);
+        orderByDate.setDate(orderByDate.getDate() - leadDays);
+        r.orderByDate = orderByDate;
+        r.daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
+        r.stockoutDate = r.stockoutDate || projectedRunout.toISOString().split('T')[0];
+      } else {
+        r.orderByDate = null;
+        r.daysUntilOrderBy = 999;
+      }
     }
     return r;
   });
