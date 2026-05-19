@@ -2100,12 +2100,17 @@ async function processInventory(data, filename) {
 
   if (rows.length === 0) throw new Error('No matching components found. Check that component names match exactly.');
 
-  // Delete today's snapshot first, then insert fresh
-  await sbDelete('inventory_snapshot', `snapshot_date=eq.${today}`);
+  // Delete each item's today snapshot individually before inserting
+  // This ensures no constraint conflicts
+  for (const row of rows) {
+    try {
+      await sbDelete('inventory_snapshot', `item_id=eq.${row.item_id}&snapshot_date=eq.${today}`);
+    } catch(e) {
+      // Ignore if row didn't exist
+    }
+  }
 
-  // Small delay to ensure delete completes before insert
-  await new Promise(r => setTimeout(r, 300));
-
+  // Insert in batches
   for (let i = 0; i < rows.length; i += 50) {
     await sbPost('inventory_snapshot', rows.slice(i, i+50));
   }
