@@ -561,6 +561,46 @@ thead th.sortable:hover { color: var(--text2); background: var(--surface3); }
 thead th.sortable .sort-icon { margin-left: 4px; color: var(--text3); font-size: 9px; }
 thead th.sortable.sort-asc .sort-icon::after { content: ' ▲'; color: var(--pw-blue); }
 thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw-blue); }
+/* SEARCHABLE SELECT */
+.search-select-wrap { position: relative; }
+.search-select-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  outline: none;
+  cursor: text;
+}
+.search-select-input:focus { border-color: var(--pw-blue); box-shadow: 0 0 0 3px var(--accent-glow); }
+.search-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+  display: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.search-select-dropdown.open { display: block; }
+.search-select-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.search-select-option:last-child { border-bottom: none; }
+.search-select-option:hover, .search-select-option.highlighted { background: var(--surface3); color: var(--pw-blue); }
+.search-select-option.empty { color: var(--text3); font-style: italic; cursor: default; }
+
 /* COVERAGE BAR */
 .coverage-wrap { display: flex; align-items: center; gap: 8px; }
 .coverage-label { font-family: var(--font-mono); font-size: 11px; min-width: 36px; }
@@ -943,9 +983,7 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">Supplier</label>
-              <select class="form-input" id="po_supplier_id" onchange="onPOSupplierChange()">
-                <option value="">— Select supplier —</option>
-              </select>
+              <div id="po_supplier_wrap"></div>
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">Status</label>
@@ -1006,10 +1044,7 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
 
         <!-- Selector bar -->
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
-          <select class="form-input" id="componentDetailSelect" onchange="onComponentDetailSelect()"
-            style="max-width:420px;font-size:14px;padding:9px 14px">
-            <option value="">— Select a component —</option>
-          </select>
+          <div id="componentDetailSelectWrap" style="width:420px"></div>
           <div id="componentDetailStatus"></div>
         </div>
 
@@ -1554,7 +1589,6 @@ function renderRecommendations() {
     supplierSelect.innerHTML = `<option value="">All Suppliers</option>` +
       suppliers.map(s => `<option value="${s}" ${s === current ? 'selected' : ''}>${s}</option>`).join('');
   }
-
   let recs = [...state.recommendations];
   if (filterSupplier) recs = recs.filter(r => r.supplier_name === filterSupplier);
 
@@ -2447,12 +2481,9 @@ function openAddPOModal() {
   document.getElementById('po_status').value = 'OPEN';
   document.getElementById('po_order_date').value = new Date().toISOString().split('T')[0];
   document.getElementById('po_notes').value = '';
-  document.getElementById('po_supplier_id').innerHTML =
-    `<option value="">— Select supplier —</option>` +
-    state.suppliers.filter(s=>s.is_active).sort((a,b)=>a.supplier_name.localeCompare(b.supplier_name))
-      .map(s=>`<option value="${s.supplier_id}">${s.supplier_name}</option>`).join('');
 
-  // Start with 3 empty line rows
+  initSupplierSearchSelect('po_supplier_wrap', null);
+
   document.getElementById('poLinesBody').innerHTML = '';
   addPOLineRow();
   addPOLineRow();
@@ -2462,16 +2493,32 @@ function openAddPOModal() {
   document.getElementById('po_number').focus();
 }
 
-function onPOSupplierChange() {
-  // Auto-set default receipt dates based on supplier lead time if not yet filled
-  const supplierId = parseInt(document.getElementById('po_supplier_id').value);
+function initSupplierSearchSelect(containerId, selectedSupplierId) {
+  const options = state.suppliers
+    .filter(s => s.is_active)
+    .sort((a,b) => a.supplier_name.localeCompare(b.supplier_name))
+    .map(s => ({ value: String(s.supplier_id), label: s.supplier_name }));
+
+  searchSelects['po_supplier'] = new SearchSelect(
+    containerId,
+    options,
+    (value) => { onPOSupplierChange(parseInt(value)); },
+    'Search supplier...'
+  );
+
+  if (selectedSupplierId) {
+    const sup = state.suppliers.find(s => s.supplier_id === selectedSupplierId);
+    if (sup) searchSelects['po_supplier'].setValue(String(selectedSupplierId), sup.supplier_name);
+  }
+}
+
+function onPOSupplierChange(supplierId) {
   if (!supplierId) return;
   const sup = state.suppliers.find(s => s.supplier_id === supplierId);
   if (!sup) return;
   const d = new Date();
   d.setDate(d.getDate() + (sup.lead_time_days || 30));
   const defaultDate = d.toISOString().split('T')[0];
-  // Set on any empty receipt date fields
   document.querySelectorAll('.po-line-receipt').forEach(input => {
     if (!input.value) input.value = defaultDate;
   });
@@ -2487,10 +2534,7 @@ function addPOLineRow(existing = null) {
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
     <td style="padding:6px 4px">
-      <select class="form-input po-line-component" style="padding:5px 8px;font-size:12px" data-line="${id}">
-        <option value="">— Select component —</option>
-        ${componentOptions}
-      </select>
+      <div id="po_line_comp_${id}"></div>
     </td>
     <td style="padding:6px 4px">
       <input type="number" class="form-input po-line-qty" style="padding:5px 8px;font-size:12px;font-family:var(--font-mono)"
@@ -2517,6 +2561,39 @@ function addPOLineRow(existing = null) {
     tr.querySelector('.po-line-component').value = existing.item_id;
   }
   tbody.appendChild(tr);
+
+  // Init SearchSelect for this line's component
+  const compOptions = state.items
+    .filter(i => i.item_type === 'COMPONENT')
+    .sort((a,b) => a.part_name.localeCompare(b.part_name))
+    .map(c => ({ value: String(c.item_id), label: c.part_name }));
+
+  searchSelects[`po_line_comp_${id}`] = new SearchSelect(
+    `po_line_comp_${id}`,
+    compOptions,
+    (value) => {
+      // Auto-set receipt date from lead time when component selected
+      const itemId = parseInt(value);
+      const is = state.itemSuppliers.find(x => x.item_id === itemId);
+      const sup = is ? state.suppliers.find(s => s.supplier_id === is.supplier_id) : null;
+      const leadDays = is?.lead_time_override || sup?.lead_time_days || 30;
+      const receiptInput = tr.querySelector('.po-line-receipt');
+      if (receiptInput && !receiptInput.value) {
+        const d = new Date();
+        d.setDate(d.getDate() + leadDays);
+        receiptInput.value = d.toISOString().split('T')[0];
+      }
+      updatePOLineSummary();
+    },
+    'Search component...'
+  );
+
+  // Pre-select if editing
+  if (existing?.item_id) {
+    const item = state.items.find(i => i.item_id === existing.item_id);
+    if (item) searchSelects[`po_line_comp_${id}`].setValue(String(existing.item_id), item.part_name);
+  }
+
   updatePOLineSummary();
 }
 
@@ -2528,7 +2605,9 @@ function removePOLineRow(id) {
 
 function updatePOLineSummary() {
   const lines = document.querySelectorAll('#poLinesBody tr').length;
-  const filled = [...document.querySelectorAll('.po-line-component')].filter(s => s.value).length;
+  const filled = [...document.querySelectorAll('#poLinesBody tr')].filter(row => {
+    return searchSelects[`po_line_comp_${row.id}`]?.getValue();
+  }).length;
   document.getElementById('poLineSummary').textContent = `${lines} lines · ${filled} with component selected`;
 }
 
@@ -2546,10 +2625,7 @@ function openEditPOModal(poNumber) {
   document.getElementById('po_order_date').value = firstLine.order_date || '';
   document.getElementById('po_notes').value = firstLine.notes || '';
 
-  document.getElementById('po_supplier_id').innerHTML =
-    `<option value="">— Select supplier —</option>` +
-    state.suppliers.filter(s=>s.is_active).sort((a,b)=>a.supplier_name.localeCompare(b.supplier_name))
-      .map(s=>`<option value="${s.supplier_id}" ${s.supplier_id === firstLine.supplier_id ? 'selected' : ''}>${s.supplier_name}</option>`).join('');
+  initSupplierSearchSelect('po_supplier_wrap', firstLine.supplier_id);
 
   document.getElementById('poLinesBody').innerHTML = '';
   for (const line of poLines) addPOLineRow(line);
@@ -2564,28 +2640,27 @@ function closePOModal() {
 
 async function savePO() {
   const poNumber = document.getElementById('po_number').value.trim();
-  const supplierId = parseInt(document.getElementById('po_supplier_id').value) || null;
+  const supplierId = parseInt(searchSelects['po_supplier']?.getValue()) || null;
   const status = document.getElementById('po_status').value;
   const orderDate = document.getElementById('po_order_date').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
 
   if (!poNumber) { toast('PO Number is required', 'error'); return; }
 
-  // Collect line items
+  // Collect line items — read component from SearchSelect
   const lineRows = document.querySelectorAll('#poLinesBody tr');
   const lines = [];
   let hasError = false;
 
   lineRows.forEach((row, idx) => {
-    const itemId = parseInt(row.querySelector('.po-line-component')?.value);
+    const lineId = row.id;
+    const itemId = parseInt(searchSelects[`po_line_comp_${lineId}`]?.getValue());
     const qtyOrdered = parseFloat(row.querySelector('.po-line-qty')?.value);
     const qtyReceived = parseFloat(row.querySelector('.po-line-received')?.value) || 0;
     const receiptDate = row.querySelector('.po-line-receipt')?.value;
     const unitCost = parseFloat(row.querySelector('.po-line-cost')?.value) || null;
 
-    // Skip completely empty rows
     if (!itemId && !qtyOrdered) return;
-
     if (!itemId) { toast(`Line ${idx+1}: Component is required`, 'error'); hasError = true; return; }
     if (!qtyOrdered || qtyOrdered <= 0) { toast(`Line ${idx+1}: Qty must be greater than 0`, 'error'); hasError = true; return; }
     if (!receiptDate) { toast(`Line ${idx+1}: Expected Receipt Date is required`, 'error'); hasError = true; return; }
@@ -2674,31 +2749,30 @@ let detailUsageChart = null;
 let detailStockChart = null;
 
 function renderComponentDetail() {
-  // Populate dropdown with active components that have net requirements data
-  const select = document.getElementById('componentDetailSelect');
-  const currentVal = select.value;
-
-  const componentNames = [...new Set(state.netRequirements.map(r => r.component_part_name))].sort();
-  // Also include components from items even if no forecast yet
   const allComponents = state.items
     .filter(i => i.item_type === 'COMPONENT')
-    .sort((a,b) => a.part_name.localeCompare(b.part_name));
+    .sort((a,b) => a.part_name.localeCompare(b.part_name))
+    .map(c => ({ value: String(c.item_id), label: c.part_name }));
 
-  select.innerHTML = `<option value="">— Select a component —</option>` +
-    allComponents.map(c => `<option value="${c.item_id}">${c.part_name}</option>`).join('');
-
-  if (currentVal) {
-    select.value = currentVal;
-    onComponentDetailSelect();
+  if (!searchSelects['componentDetailSelect']) {
+    searchSelects['componentDetailSelect'] = new SearchSelect(
+      'componentDetailSelectWrap',
+      allComponents,
+      (value) => { onComponentDetailSelect(value); },
+      'Search components...'
+    );
+  } else {
+    searchSelects['componentDetailSelect'].setOptions(allComponents);
   }
 }
 
-function onComponentDetailSelect() {
-  const itemId = parseInt(document.getElementById('componentDetailSelect').value);
-  document.getElementById('componentDetailEmpty').style.display = itemId ? 'none' : '';
-  document.getElementById('componentDetailContent').style.display = itemId ? 'block' : 'none';
-  if (!itemId) return;
-  buildComponentDetail(itemId);
+function onComponentDetailSelect(itemId) {
+  if (!itemId) itemId = searchSelects['componentDetailSelect']?.getValue();
+  const id = parseInt(itemId);
+  document.getElementById('componentDetailEmpty').style.display = id ? 'none' : '';
+  document.getElementById('componentDetailContent').style.display = id ? 'block' : 'none';
+  if (!id) return;
+  buildComponentDetail(id);
 }
 
 function buildComponentDetail(itemId) {
@@ -2794,7 +2868,6 @@ function buildComponentDetail(itemId) {
                   Order by ${oDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}
                   ${isOverdue ? ' · OVERDUE' : ` · in ${daysUntilOrder}d`}
                 </div>
-                <div style="font-size:11px;color:var(--text3);margin-top:2px">Qty needed: ${Math.round(e.netReq).toLocaleString()}</div>
               </div>`;
             }).join('')}
           </div>
@@ -3015,6 +3088,97 @@ function jumpToComponentDetail(itemId) {
     select.value = itemId;
     onComponentDetailSelect();
   }
+}
+
+// ============================================================
+// SEARCHABLE SELECT COMPONENT
+// ============================================================
+class SearchSelect {
+  constructor(containerId, options = [], onChange = null, placeholder = 'Search...') {
+    this.containerId = containerId;
+    this.options = options; // [{value, label}]
+    this.onChange = onChange;
+    this.value = '';
+    this.placeholder = placeholder;
+    this.render();
+  }
+
+  render() {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+    container.innerHTML = `
+      <div class="search-select-wrap" id="${this.containerId}_wrap">
+        <input type="text" class="search-select-input" id="${this.containerId}_input"
+          placeholder="${this.placeholder}" autocomplete="off" spellcheck="false">
+        <div class="search-select-dropdown" id="${this.containerId}_dropdown"></div>
+      </div>`;
+
+    const input = document.getElementById(`${this.containerId}_input`);
+    const dropdown = document.getElementById(`${this.containerId}_dropdown`);
+
+    input.addEventListener('input', () => {
+      this.filterOptions(input.value);
+      dropdown.classList.add('open');
+    });
+    input.addEventListener('focus', () => {
+      this.filterOptions(input.value);
+      dropdown.classList.add('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.classList.remove('open');
+    });
+  }
+
+  filterOptions(query) {
+    const dropdown = document.getElementById(`${this.containerId}_dropdown`);
+    if (!dropdown) return;
+    const filtered = query
+      ? this.options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+      : this.options;
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = `<div class="search-select-option empty">No matches found</div>`;
+      return;
+    }
+    dropdown.innerHTML = filtered.slice(0, 80).map(o =>
+      `<div class="search-select-option" data-value="${o.value}" onclick="searchSelectPick('${this.containerId}','${o.value}',${JSON.stringify(o.label)})">${o.label}</div>`
+    ).join('');
+  }
+
+  setOptions(options) {
+    this.options = options;
+    const input = document.getElementById(`${this.containerId}_input`);
+    if (input && !input.value) this.filterOptions('');
+  }
+
+  getValue() { return this.value; }
+
+  setValue(value, label) {
+    this.value = value;
+    const input = document.getElementById(`${this.containerId}_input`);
+    if (input) input.value = label || '';
+    const dropdown = document.getElementById(`${this.containerId}_dropdown`);
+    if (dropdown) dropdown.classList.remove('open');
+  }
+
+  clear() {
+    this.value = '';
+    const input = document.getElementById(`${this.containerId}_input`);
+    if (input) input.value = '';
+  }
+}
+
+// Global registry of SearchSelect instances
+const searchSelects = {};
+
+function searchSelectPick(containerId, value, label) {
+  const ss = searchSelects[containerId];
+  if (ss) {
+    ss.setValue(value, label);
+    if (ss.onChange) ss.onChange(value, label);
+  }
+  const dropdown = document.getElementById(`${containerId}_dropdown`);
+  if (dropdown) dropdown.classList.remove('open');
 }
 
 // ============================================================
