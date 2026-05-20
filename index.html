@@ -2839,11 +2839,18 @@ function buildComponentDetail(itemId) {
   let status = 'green', statusLabel = 'COVERED';
   if (onHand === 0) {
     status = 'red'; statusLabel = 'OUT OF STOCK';
-  } else if (orderByDate && orderByDate < today) {
-    if (stockoutDate) { status = 'red'; statusLabel = 'ORDER NOW'; }
-    else { status = 'yellow'; statusLabel = 'BELOW SAFETY STOCK'; }
-  } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) {
-    status = 'yellow'; statusLabel = stockoutDate ? 'ORDER SOON' : 'MONITOR';
+  } else if (stockoutDate) {
+    // Only flag urgency if balance actually goes negative
+    if (orderByDate && orderByDate < today) {
+      status = 'red'; statusLabel = 'ORDER NOW';
+    } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) {
+      status = 'yellow'; statusLabel = 'ORDER SOON';
+    } else {
+      status = 'yellow'; statusLabel = 'PLAN ORDER';
+    }
+  } else {
+    // No actual stockout — covered regardless of safety stock math
+    status = 'green'; statusLabel = 'COVERED';
   }
 
   // ── Multi-shortage detection (actual stockouts only — projected_balance < 0) ──
@@ -2932,16 +2939,16 @@ function buildComponentDetail(itemId) {
         : '—'),
       sub: stockoutDate
         ? `in ${Math.round((new Date(stockoutDate)-today)/604800000)}w`
-        : firstShortageDate ? 'Below safety stock' : 'No stockout forecast',
-      color: stockoutDate ? (status === 'red' ? 'var(--red)' : 'var(--yellow)') : firstShortageDate ? 'var(--yellow)' : 'var(--green)'
+        : 'No stockout forecast',
+      color: stockoutDate ? kpiColor : 'var(--green)'
     },
     {
       label: 'Order By',
-      value: onHand === 0 ? 'OVERDUE' : (orderByDate
+      value: onHand === 0 ? 'OVERDUE' : (!stockoutDate ? '—' : orderByDate
         ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}))
         : '—'),
-      sub: orderByDate && orderByDate >= today ? `in ${Math.round((orderByDate-today)/86400000)}d` : '',
-      color: kpiColor
+      sub: stockoutDate && orderByDate && orderByDate >= today ? `in ${Math.round((orderByDate-today)/86400000)}d` : '',
+      color: stockoutDate ? kpiColor : 'var(--text3)'
     },
   ];
 
