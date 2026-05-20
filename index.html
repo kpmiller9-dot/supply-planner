@@ -1186,6 +1186,8 @@ async function sbFetch(path, opts = {}) {
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
       'Prefer': opts.prefer || 'return=representation',
+      'Range-Unit': 'items',
+      'Range': '0-9999',
       ...(opts.headers || {})
     }
   });
@@ -1310,11 +1312,11 @@ async function loadInventory() {
 }
 
 async function loadRecommendations() {
-  state.recommendations = await sbGet('v_purchasing_recommendations', '');
+  state.recommendations = await sbGet('v_purchasing_recommendations', 'limit=1000');
 }
 
 async function loadNetRequirements() {
-  state.netRequirements = await sbGet('v_net_requirements', 'order=week_start_date,component_part_name');
+  state.netRequirements = await sbGet('v_net_requirements', 'order=week_start_date,component_part_name&limit=10000');
 }
 
 async function loadForecast() {
