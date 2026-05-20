@@ -599,6 +599,9 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
       <div class="nav-item" onclick="showScreen('forecast')" id="nav-forecast">
         <span class="icon">◇</span> Forecast
       </div>
+      <div class="nav-item" onclick="showScreen('component-detail')" id="nav-component-detail">
+        <span class="icon">⊙</span> Component Detail
+      </div>
       <div class="nav-section">Data</div>
       <div class="nav-item" onclick="showScreen('pos')" id="nav-pos">
         <span class="icon">◎</span> Open POs
@@ -895,7 +898,7 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
                 <option value="PARTIAL">Partial</option>
                 <option value="CLOSED">Closed</option>
               </select>
-              <button class="btn btn-primary btn-sm" onclick="openAddPOModal()">+ Add PO Line</button>
+              <button class="btn btn-primary btn-sm" onclick="openAddPOModal()">+ New PO</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -923,19 +926,28 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
       </div>
 
       <!-- ADD/EDIT PO MODAL -->
-      <div id="poModal" style="display:none;position:fixed;inset:0;background:rgba(6,14,26,0.85);z-index:500;display:none;align-items:center;justify-content:center;">
-        <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:28px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-            <div style="font-family:var(--font-display);font-size:16px;font-weight:700" id="poModalTitle">Add PO Line</div>
-            <button onclick="closePOModal()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;line-height:1">×</button>
+      <div id="poModal" style="display:none;position:fixed;inset:0;background:rgba(6,14,26,0.88);z-index:500;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto;">
+        <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:28px;width:780px;max-width:100%;margin:auto;">
+
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+            <div style="font-family:var(--font-display);font-size:16px;font-weight:700" id="poModalTitle">New Purchase Order</div>
+            <button onclick="closePOModal()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:22px;line-height:1">×</button>
           </div>
 
-          <div class="grid-2">
-            <div class="form-group">
+          <!-- PO Header Fields -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">
+            <div class="form-group" style="margin:0">
               <label class="form-label">PO Number *</label>
               <input type="text" class="form-input" id="po_number" placeholder="e.g. PW2605A5B">
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Supplier</label>
+              <select class="form-input" id="po_supplier_id" onchange="onPOSupplierChange()">
+                <option value="">— Select supplier —</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
               <label class="form-label">Status</label>
               <select class="form-input" id="po_status">
                 <option value="OPEN">Open</option>
@@ -945,56 +957,110 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Component *</label>
-            <select class="form-input" id="po_item_id">
-              <option value="">— Select component —</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Supplier</label>
-            <select class="form-input" id="po_supplier_id">
-              <option value="">— Select supplier —</option>
-            </select>
-          </div>
-
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Qty Ordered *</label>
-              <input type="number" class="form-input" id="po_qty_ordered" placeholder="0" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Qty Received</label>
-              <input type="number" class="form-input" id="po_qty_received" placeholder="0" min="0" value="0">
-            </div>
-          </div>
-
-          <div class="grid-2">
-            <div class="form-group">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
+            <div class="form-group" style="margin:0">
               <label class="form-label">Order Date</label>
               <input type="date" class="form-input" id="po_order_date">
             </div>
-            <div class="form-group">
-              <label class="form-label">Expected Receipt Date *</label>
-              <input type="date" class="form-input" id="po_receipt_date">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Notes</label>
+              <input type="text" class="form-input" id="po_notes" placeholder="Optional">
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Unit Cost</label>
-            <input type="number" class="form-input" id="po_unit_cost" placeholder="0.00" min="0" step="0.01">
+          <!-- Line Items Section -->
+          <div style="border-top:1px solid var(--border);padding-top:18px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="font-size:12px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Line Items</div>
+              <button class="btn btn-ghost btn-sm" onclick="addPOLineRow()">+ Add Line</button>
+            </div>
+
+            <table style="width:100%;border-collapse:collapse;font-size:12px" id="poLinesTable">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--font-mono);width:40%">Component *</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--font-mono);width:12%">Qty Ordered *</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--font-mono);width:12%">Qty Received</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--font-mono);width:18%">Expected Receipt *</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--font-mono);width:12%">Unit Cost</th>
+                  <th style="width:32px"></th>
+                </tr>
+              </thead>
+              <tbody id="poLinesBody"></tbody>
+            </table>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Notes</label>
-            <input type="text" class="form-input" id="po_notes" placeholder="Optional notes">
+          <!-- Footer -->
+          <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:8px;padding-top:16px;border-top:1px solid var(--border)">
+            <div style="font-size:12px;color:var(--text3);font-family:var(--font-mono)" id="poLineSummary">0 lines</div>
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-ghost" onclick="closePOModal()">Cancel</button>
+              <button class="btn btn-primary" onclick="savePO()" id="poSaveBtn">Save Purchase Order</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPONENT DETAIL -->
+      <div class="screen" id="screen-component-detail">
+
+        <!-- Selector bar -->
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+          <select class="form-input" id="componentDetailSelect" onchange="onComponentDetailSelect()"
+            style="max-width:420px;font-size:14px;padding:9px 14px">
+            <option value="">— Select a component —</option>
+          </select>
+          <div id="componentDetailStatus"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="componentDetailEmpty" class="card" style="text-align:center;padding:48px">
+          <div style="font-size:32px;margin-bottom:12px">⊙</div>
+          <div style="font-family:var(--font-display);font-size:18px;color:var(--text2);margin-bottom:6px">Select a component to view detail</div>
+          <div style="font-size:13px;color:var(--text3)">Choose any component from the dropdown above</div>
+        </div>
+
+        <!-- Detail content -->
+        <div id="componentDetailContent" style="display:none">
+
+          <!-- KPI row -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px" id="componentKPIs"></div>
+
+          <!-- Charts row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+            <div class="card">
+              <div class="card-title">Forecasted Weekly Usage</div>
+              <div class="card-sub">Gross component demand from forecast × BOM · next 20 weeks</div>
+              <canvas id="usageChart" height="200"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-title">Net On-Hand Position</div>
+              <div class="card-sub">On-hand − cumulative usage + scheduled PO receipts · sawtooth view</div>
+              <canvas id="stockChart" height="200"></canvas>
+            </div>
           </div>
 
-          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
-            <button class="btn btn-ghost" onclick="closePOModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="savePOLine()" id="poSaveBtn">Save PO Line</button>
+          <!-- PO receipts table -->
+          <div class="card">
+            <div class="card-title">Scheduled PO Receipts</div>
+            <div class="card-sub">Open purchase orders inbound for this component</div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>PO Number</th>
+                    <th>Supplier</th>
+                    <th>Qty Outstanding</th>
+                    <th>Expected Receipt</th>
+                    <th>Days Out</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="componentPOsBody"></tbody>
+              </table>
+            </div>
           </div>
+
         </div>
       </div>
 
@@ -1120,6 +1186,7 @@ const screenTitles = {
   dashboard: 'Dashboard',
   recommendations: 'PO Recommendations',
   forecast: 'Forecast',
+  'component-detail': 'Component Detail',
   pos: 'Open Purchase Orders',
   uploads: 'Upload Center',
   components: 'Component Master'
@@ -1134,6 +1201,7 @@ function showScreen(name) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'recommendations') renderRecommendations();
   if (name === 'forecast') renderForecast();
+  if (name === 'component-detail') renderComponentDetail();
   if (name === 'pos') renderPOs();
   if (name === 'components') renderComponents();
   if (name === 'uploads') renderUploadHistory();
@@ -1228,6 +1296,8 @@ function renderCurrentScreen() {
   if (name === 'dashboard') renderDashboard();
   if (name === 'recommendations') renderRecommendations();
   if (name === 'forecast') renderForecast();
+  if (name === 'component-detail') renderComponentDetail();
+  if (name === 'pos') renderPOs();
   if (name === 'components') renderComponents();
 }
 
@@ -1442,7 +1512,7 @@ function renderDashboard() {
       : `<span style="color:var(--text3)">—</span>`;
 
     return `<tr>
-      <td><div style="font-weight:500">${r.name}</div><div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${r.supplier}</div></td>
+      <td><div style="font-weight:500;cursor:pointer;color:var(--pw-blue)" onclick="jumpToComponentDetail(${r.id})" title="View component detail">${r.name}</div><div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${r.supplier}</div></td>
       <td><span style="font-size:11px;color:var(--text2)">${r.category}</span></td>
       <td class="mono">${r.onHand.toLocaleString()}</td>
       <td>
@@ -2254,6 +2324,7 @@ async function renderUploadHistory() {
 // OPEN POs
 // ============================================================
 let editingPOId = null;
+let poLineCounter = 0;
 
 function renderPOs() {
   const tbody = document.getElementById('posBody');
@@ -2269,119 +2340,213 @@ function renderPOs() {
 
   if (pos.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◎</div>
-      <div class="empty-title">${state.openPOs.length === 0 ? 'No open POs — click Add PO Line to create one' : 'No POs match filter'}</div></div></td></tr>`;
+      <div class="empty-title">${state.openPOs.length === 0 ? 'No open POs — click New PO to create one' : 'No POs match filter'}</div></div></td></tr>`;
     return;
   }
 
   const today = new Date();
 
-  tbody.innerHTML = pos.map(po => {
-    const item = itemById[po.item_id];
-    const supplier = supplierById[po.supplier_id];
-    const receipt = po.expected_receipt_date ? new Date(po.expected_receipt_date) : null;
-    const daysOut = receipt ? Math.round((receipt - today) / 86400000) : null;
-    const isOverdue = daysOut !== null && daysOut < 0;
-    const statusColor = po.po_status === 'OPEN' ? 'blue' : po.po_status === 'PARTIAL' ? 'yellow' : 'gray';
-    const qtyOut = parseFloat(po.qty_outstanding) || (parseFloat(po.qty_ordered) - parseFloat(po.qty_received || 0));
+  // Group by PO number
+  const grouped = {};
+  for (const po of pos) {
+    if (!grouped[po.po_number]) grouped[po.po_number] = [];
+    grouped[po.po_number].push(po);
+  }
 
-    return `<tr>
-      <td class="mono" style="font-weight:600">${po.po_number}</td>
-      <td style="max-width:220px">
-        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item?.part_name || `Item #${po.item_id}`}</div>
-      </td>
-      <td style="color:var(--text2);font-size:12px">${supplier?.supplier_name || '—'}</td>
-      <td class="mono">${parseFloat(po.qty_ordered).toLocaleString()}</td>
-      <td class="mono">${parseFloat(po.qty_received || 0).toLocaleString()}</td>
-      <td class="mono" style="font-weight:600;color:${qtyOut > 0 ? 'var(--pw-blue)' : 'var(--text3)'}">${qtyOut.toLocaleString()}</td>
-      <td class="mono text-dim">${po.order_date ? new Date(po.order_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}</td>
-      <td class="mono ${isOverdue ? 'order-urgent' : ''}">${receipt ? receipt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}
-        ${daysOut !== null ? `<span style="font-size:10px;color:${isOverdue ? 'var(--red)' : daysOut < 14 ? 'var(--yellow)' : 'var(--text3)'}">
-          ${isOverdue ? ` (${Math.abs(daysOut)}d overdue)` : ` (${daysOut}d)`}</span>` : ''}
-      </td>
-      <td><span class="pill ${statusColor}">${po.po_status}</span></td>
+  const rows = [];
+  for (const [poNum, lines] of Object.entries(grouped)) {
+    const firstLine = lines[0];
+    const supplier = supplierById[firstLine.supplier_id];
+
+    // PO header row
+    rows.push(`<tr style="background:var(--surface2);border-top:2px solid var(--border2)">
+      <td class="mono" style="font-weight:700;color:var(--pw-blue)">${poNum}</td>
+      <td style="color:var(--text2);font-size:12px" colspan="2">${supplier?.supplier_name || '—'}</td>
+      <td class="mono">${lines.reduce((s,l) => s + parseFloat(l.qty_ordered||0), 0).toLocaleString()} total</td>
+      <td class="mono">${lines.reduce((s,l) => s + parseFloat(l.qty_received||0), 0).toLocaleString()}</td>
+      <td class="mono" style="color:var(--pw-blue)">${lines.reduce((s,l) => s + parseFloat(l.qty_outstanding||0), 0).toLocaleString()}</td>
+      <td class="mono text-dim">${firstLine.order_date ? new Date(firstLine.order_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}</td>
+      <td></td>
+      <td><span class="pill ${firstLine.po_status === 'OPEN' ? 'blue' : firstLine.po_status === 'PARTIAL' ? 'yellow' : 'gray'}">${firstLine.po_status}</span></td>
       <td>
         <div class="flex gap-8">
-          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal(${po.po_line_id})">Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="deletePOLine(${po.po_line_id}, '${po.po_number}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal('${poNum}')">Edit PO</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePO('${poNum}')">Delete</button>
         </div>
       </td>
-    </tr>`;
-  }).join('');
+    </tr>`);
+
+    // Line item rows
+    for (const po of lines) {
+      const item = itemById[po.item_id];
+      const receipt = po.expected_receipt_date ? new Date(po.expected_receipt_date + 'T12:00:00') : null;
+      const daysOut = receipt ? Math.round((receipt - today) / 86400000) : null;
+      const isOverdue = daysOut !== null && daysOut < 0;
+      const qtyOut = parseFloat(po.qty_outstanding) || (parseFloat(po.qty_ordered) - parseFloat(po.qty_received||0));
+
+      rows.push(`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding-left:20px;color:var(--text3);font-size:11px;font-family:var(--font-mono)">└ #${po.line_number}</td>
+        <td style="max-width:220px"><div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item?.part_name || `Item #${po.item_id}`}</div></td>
+        <td></td>
+        <td class="mono">${parseFloat(po.qty_ordered).toLocaleString()}</td>
+        <td class="mono">${parseFloat(po.qty_received||0).toLocaleString()}</td>
+        <td class="mono" style="color:${qtyOut > 0 ? 'var(--pw-blue)' : 'var(--text3)'}">${qtyOut.toLocaleString()}</td>
+        <td></td>
+        <td class="mono ${isOverdue ? 'order-urgent' : ''}">${receipt ? receipt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}
+          ${daysOut !== null ? `<span style="font-size:10px;color:${isOverdue ? 'var(--red)' : daysOut < 14 ? 'var(--yellow)' : 'var(--text3)'}"> (${isOverdue ? Math.abs(daysOut)+'d overdue' : daysOut+'d'})</span>` : ''}
+        </td>
+        <td></td>
+        <td></td>
+      </tr>`);
+    }
+  }
+
+  tbody.innerHTML = rows.join('');
+}
+
+async function deletePO(poNumber) {
+  if (!confirm(`Delete all lines for PO ${poNumber}? This cannot be undone.`)) return;
+  showLoading('Deleting...');
+  try {
+    await sbDelete('open_purchase_orders', `po_number=eq.${encodeURIComponent(poNumber)}`);
+    toast(`PO ${poNumber} deleted`, 'success');
+    await loadOpenPOs();
+    await loadRecommendations();
+    await loadNetRequirements();
+    renderPOs();
+    renderDashboard();
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function buildComponentOptions() {
+  return state.items
+    .filter(i => i.item_type === 'COMPONENT')
+    .sort((a,b) => a.part_name.localeCompare(b.part_name))
+    .map(c => `<option value="${c.item_id}">${c.part_name}</option>`)
+    .join('');
 }
 
 function openAddPOModal() {
   editingPOId = null;
-  document.getElementById('poModalTitle').textContent = 'Add PO Line';
-  document.getElementById('poSaveBtn').textContent = 'Add PO Line';
-
-  // Clear fields
-  ['po_number','po_qty_ordered','po_qty_received','po_unit_cost','po_notes'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
+  poLineCounter = 0;
+  document.getElementById('poModalTitle').textContent = 'New Purchase Order';
+  document.getElementById('poSaveBtn').textContent = 'Save Purchase Order';
+  document.getElementById('po_number').value = '';
   document.getElementById('po_status').value = 'OPEN';
-  document.getElementById('po_qty_received').value = '0';
   document.getElementById('po_order_date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('po_receipt_date').value = '';
-  document.getElementById('po_item_id').value = '';
-  document.getElementById('po_supplier_id').value = '';
+  document.getElementById('po_notes').value = '';
+  document.getElementById('po_supplier_id').innerHTML =
+    `<option value="">— Select supplier —</option>` +
+    state.suppliers.filter(s=>s.is_active).sort((a,b)=>a.supplier_name.localeCompare(b.supplier_name))
+      .map(s=>`<option value="${s.supplier_id}">${s.supplier_name}</option>`).join('');
 
-  populatePOModalDropdowns();
+  // Start with 3 empty line rows
+  document.getElementById('poLinesBody').innerHTML = '';
+  addPOLineRow();
+  addPOLineRow();
+  addPOLineRow();
+
   document.getElementById('poModal').style.display = 'flex';
+  document.getElementById('po_number').focus();
 }
 
-function openEditPOModal(poLineId) {
-  const po = state.openPOs.find(p => p.po_line_id === poLineId);
-  if (!po) return;
-  editingPOId = poLineId;
+function onPOSupplierChange() {
+  // Auto-set default receipt dates based on supplier lead time if not yet filled
+  const supplierId = parseInt(document.getElementById('po_supplier_id').value);
+  if (!supplierId) return;
+  const sup = state.suppliers.find(s => s.supplier_id === supplierId);
+  if (!sup) return;
+  const d = new Date();
+  d.setDate(d.getDate() + (sup.lead_time_days || 30));
+  const defaultDate = d.toISOString().split('T')[0];
+  // Set on any empty receipt date fields
+  document.querySelectorAll('.po-line-receipt').forEach(input => {
+    if (!input.value) input.value = defaultDate;
+  });
+}
 
-  document.getElementById('poModalTitle').textContent = 'Edit PO Line';
+function addPOLineRow(existing = null) {
+  poLineCounter++;
+  const id = `line_${poLineCounter}`;
+  const componentOptions = buildComponentOptions();
+  const tbody = document.getElementById('poLinesBody');
+  const tr = document.createElement('tr');
+  tr.id = id;
+  tr.style.borderBottom = '1px solid var(--border)';
+  tr.innerHTML = `
+    <td style="padding:6px 4px">
+      <select class="form-input po-line-component" style="padding:5px 8px;font-size:12px" data-line="${id}">
+        <option value="">— Select component —</option>
+        ${componentOptions}
+      </select>
+    </td>
+    <td style="padding:6px 4px">
+      <input type="number" class="form-input po-line-qty" style="padding:5px 8px;font-size:12px;font-family:var(--font-mono)"
+        placeholder="0" min="0" value="${existing?.qty_ordered || ''}" data-line="${id}">
+    </td>
+    <td style="padding:6px 4px">
+      <input type="number" class="form-input po-line-received" style="padding:5px 8px;font-size:12px;font-family:var(--font-mono)"
+        placeholder="0" min="0" value="${existing?.qty_received || 0}" data-line="${id}">
+    </td>
+    <td style="padding:6px 4px">
+      <input type="date" class="form-input po-line-receipt" style="padding:5px 8px;font-size:12px"
+        value="${existing?.expected_receipt_date || ''}" data-line="${id}">
+    </td>
+    <td style="padding:6px 4px">
+      <input type="number" class="form-input po-line-cost" style="padding:5px 8px;font-size:12px;font-family:var(--font-mono)"
+        placeholder="0.00" min="0" step="0.01" value="${existing?.unit_cost || ''}" data-line="${id}">
+    </td>
+    <td style="padding:6px 4px;text-align:center">
+      <button onclick="removePOLineRow('${id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px" title="Remove line">×</button>
+    </td>`;
+
+  // Set component if editing
+  if (existing?.item_id) {
+    tr.querySelector('.po-line-component').value = existing.item_id;
+  }
+  tbody.appendChild(tr);
+  updatePOLineSummary();
+}
+
+function removePOLineRow(id) {
+  const row = document.getElementById(id);
+  if (row) row.remove();
+  updatePOLineSummary();
+}
+
+function updatePOLineSummary() {
+  const lines = document.querySelectorAll('#poLinesBody tr').length;
+  const filled = [...document.querySelectorAll('.po-line-component')].filter(s => s.value).length;
+  document.getElementById('poLineSummary').textContent = `${lines} lines · ${filled} with component selected`;
+}
+
+function openEditPOModal(poNumber) {
+  const poLines = state.openPOs.filter(p => p.po_number === poNumber);
+  if (!poLines.length) return;
+  const firstLine = poLines[0];
+  editingPOId = poNumber; // store PO number for edit mode
+  poLineCounter = 0;
+
+  document.getElementById('poModalTitle').textContent = `Edit PO — ${poNumber}`;
   document.getElementById('poSaveBtn').textContent = 'Save Changes';
+  document.getElementById('po_number').value = poNumber;
+  document.getElementById('po_status').value = firstLine.po_status || 'OPEN';
+  document.getElementById('po_order_date').value = firstLine.order_date || '';
+  document.getElementById('po_notes').value = firstLine.notes || '';
 
-  populatePOModalDropdowns();
+  document.getElementById('po_supplier_id').innerHTML =
+    `<option value="">— Select supplier —</option>` +
+    state.suppliers.filter(s=>s.is_active).sort((a,b)=>a.supplier_name.localeCompare(b.supplier_name))
+      .map(s=>`<option value="${s.supplier_id}" ${s.supplier_id === firstLine.supplier_id ? 'selected' : ''}>${s.supplier_name}</option>`).join('');
 
-  document.getElementById('po_number').value = po.po_number || '';
-  document.getElementById('po_status').value = po.po_status || 'OPEN';
-  document.getElementById('po_item_id').value = po.item_id || '';
-  document.getElementById('po_supplier_id').value = po.supplier_id || '';
-  document.getElementById('po_qty_ordered').value = po.qty_ordered || '';
-  document.getElementById('po_qty_received').value = po.qty_received || 0;
-  document.getElementById('po_order_date').value = po.order_date || '';
-  document.getElementById('po_receipt_date').value = po.expected_receipt_date || '';
-  document.getElementById('po_unit_cost').value = po.unit_cost || '';
-  document.getElementById('po_notes').value = po.notes || '';
-
+  document.getElementById('poLinesBody').innerHTML = '';
+  for (const line of poLines) addPOLineRow(line);
+  updatePOLineSummary();
   document.getElementById('poModal').style.display = 'flex';
-}
-
-function populatePOModalDropdowns() {
-  // Components — only show COMPONENT type items
-  const compSelect = document.getElementById('po_item_id');
-  const components = state.items.filter(i => i.item_type === 'COMPONENT').sort((a,b) => a.part_name.localeCompare(b.part_name));
-  compSelect.innerHTML = `<option value="">— Select component —</option>` +
-    components.map(c => `<option value="${c.item_id}">${c.part_name}</option>`).join('');
-
-  // Auto-set supplier when component changes
-  compSelect.onchange = () => {
-    const itemId = parseInt(compSelect.value);
-    const is = state.itemSuppliers.find(x => x.item_id === itemId);
-    if (is) document.getElementById('po_supplier_id').value = is.supplier_id;
-
-    // Auto-calc receipt date from lead time if not set
-    const receiptField = document.getElementById('po_receipt_date');
-    if (!receiptField.value && is) {
-      const sup = state.suppliers.find(s => s.supplier_id === is.supplier_id);
-      const leadDays = is.lead_time_override || sup?.lead_time_days || 30;
-      const d = new Date();
-      d.setDate(d.getDate() + leadDays);
-      receiptField.value = d.toISOString().split('T')[0];
-    }
-  };
-
-  // Suppliers
-  const supSelect = document.getElementById('po_supplier_id');
-  supSelect.innerHTML = `<option value="">— Select supplier —</option>` +
-    state.suppliers.filter(s => s.is_active).sort((a,b) => a.supplier_name.localeCompare(b.supplier_name))
-      .map(s => `<option value="${s.supplier_id}">${s.supplier_name}</option>`).join('');
 }
 
 function closePOModal() {
@@ -2389,49 +2554,79 @@ function closePOModal() {
   editingPOId = null;
 }
 
-async function savePOLine() {
+async function savePO() {
   const poNumber = document.getElementById('po_number').value.trim();
-  const itemId = parseInt(document.getElementById('po_item_id').value);
   const supplierId = parseInt(document.getElementById('po_supplier_id').value) || null;
-  const qtyOrdered = parseFloat(document.getElementById('po_qty_ordered').value);
-  const qtyReceived = parseFloat(document.getElementById('po_qty_received').value) || 0;
-  const receiptDate = document.getElementById('po_receipt_date').value;
-  const orderDate = document.getElementById('po_order_date').value;
   const status = document.getElementById('po_status').value;
-  const unitCost = parseFloat(document.getElementById('po_unit_cost').value) || null;
+  const orderDate = document.getElementById('po_order_date').value || null;
   const notes = document.getElementById('po_notes').value.trim() || null;
 
-  // Validation
   if (!poNumber) { toast('PO Number is required', 'error'); return; }
-  if (!itemId) { toast('Component is required', 'error'); return; }
-  if (!qtyOrdered || qtyOrdered <= 0) { toast('Qty Ordered must be greater than 0', 'error'); return; }
-  if (!receiptDate) { toast('Expected Receipt Date is required', 'error'); return; }
 
-  const payload = {
-    po_number: poNumber,
-    item_id: itemId,
-    supplier_id: supplierId,
-    qty_ordered: qtyOrdered,
-    qty_received: qtyReceived,
-    order_date: orderDate || null,
-    expected_receipt_date: receiptDate,
-    po_status: status,
-    unit_cost: unitCost,
-    notes: notes,
-    uploaded_at: new Date().toISOString(),
-  };
+  // Collect line items
+  const lineRows = document.querySelectorAll('#poLinesBody tr');
+  const lines = [];
+  let hasError = false;
 
-  showLoading(editingPOId ? 'Updating PO...' : 'Adding PO...');
+  lineRows.forEach((row, idx) => {
+    const itemId = parseInt(row.querySelector('.po-line-component')?.value);
+    const qtyOrdered = parseFloat(row.querySelector('.po-line-qty')?.value);
+    const qtyReceived = parseFloat(row.querySelector('.po-line-received')?.value) || 0;
+    const receiptDate = row.querySelector('.po-line-receipt')?.value;
+    const unitCost = parseFloat(row.querySelector('.po-line-cost')?.value) || null;
+
+    // Skip completely empty rows
+    if (!itemId && !qtyOrdered) return;
+
+    if (!itemId) { toast(`Line ${idx+1}: Component is required`, 'error'); hasError = true; return; }
+    if (!qtyOrdered || qtyOrdered <= 0) { toast(`Line ${idx+1}: Qty must be greater than 0`, 'error'); hasError = true; return; }
+    if (!receiptDate) { toast(`Line ${idx+1}: Expected Receipt Date is required`, 'error'); hasError = true; return; }
+
+    lines.push({ itemId, qtyOrdered, qtyReceived, receiptDate, unitCost });
+  });
+
+  if (hasError) return;
+  if (lines.length === 0) { toast('Add at least one line item', 'error'); return; }
+
+  showLoading(editingPOId ? 'Updating PO...' : `Saving ${lines.length} line(s)...`);
   try {
     if (editingPOId) {
-      await sbPatch('open_purchase_orders', `po_line_id=eq.${editingPOId}`, payload);
-      toast(`PO line updated`, 'success');
-    } else {
-      // Get next line number for this PO
-      const existingLines = state.openPOs.filter(p => p.po_number === poNumber).length;
-      payload.line_number = existingLines + 1;
+      // Delete all existing lines for this PO number then reinsert
+      await sbDelete('open_purchase_orders', `po_number=eq.${encodeURIComponent(editingPOId)}`);
+      const payload = lines.map((line, idx) => ({
+        po_number: poNumber,
+        line_number: idx + 1,
+        item_id: line.itemId,
+        supplier_id: supplierId,
+        qty_ordered: line.qtyOrdered,
+        qty_received: line.qtyReceived,
+        order_date: orderDate,
+        expected_receipt_date: line.receiptDate,
+        po_status: status,
+        unit_cost: line.unitCost,
+        notes: notes,
+        uploaded_at: new Date().toISOString(),
+      }));
       await sbPost('open_purchase_orders', payload);
-      toast(`PO line added`, 'success');
+      toast(`PO ${poNumber} updated — ${lines.length} line(s)`, 'success');
+    } else {
+      // Insert all lines
+      const payload = lines.map((line, idx) => ({
+        po_number: poNumber,
+        line_number: idx + 1,
+        item_id: line.itemId,
+        supplier_id: supplierId,
+        qty_ordered: line.qtyOrdered,
+        qty_received: line.qtyReceived,
+        order_date: orderDate,
+        expected_receipt_date: line.receiptDate,
+        po_status: status,
+        unit_cost: line.unitCost,
+        notes: notes,
+        uploaded_at: new Date().toISOString(),
+      }));
+      await sbPost('open_purchase_orders', payload);
+      toast(`PO saved — ${lines.length} line(s) added`, 'success');
     }
     closePOModal();
     await loadOpenPOs();
@@ -2448,11 +2643,11 @@ async function savePOLine() {
 }
 
 async function deletePOLine(poLineId, poNumber) {
-  if (!confirm(`Delete PO line from ${poNumber}? This cannot be undone.`)) return;
+  if (!confirm(`Delete this line from PO ${poNumber}? This cannot be undone.`)) return;
   showLoading('Deleting...');
   try {
     await sbDelete('open_purchase_orders', `po_line_id=eq.${poLineId}`);
-    toast(`PO line deleted`, 'success');
+    toast(`Line deleted`, 'success');
     await loadOpenPOs();
     await loadRecommendations();
     await loadNetRequirements();
@@ -2462,6 +2657,282 @@ async function deletePOLine(poLineId, poNumber) {
     toast(`Error: ${e.message}`, 'error');
   } finally {
     hideLoading();
+  }
+}
+// ============================================================
+// COMPONENT DETAIL
+// ============================================================
+let detailUsageChart = null;
+let detailStockChart = null;
+
+function renderComponentDetail() {
+  // Populate dropdown with active components that have net requirements data
+  const select = document.getElementById('componentDetailSelect');
+  const currentVal = select.value;
+
+  const componentNames = [...new Set(state.netRequirements.map(r => r.component_part_name))].sort();
+  // Also include components from items even if no forecast yet
+  const allComponents = state.items
+    .filter(i => i.item_type === 'COMPONENT')
+    .sort((a,b) => a.part_name.localeCompare(b.part_name));
+
+  select.innerHTML = `<option value="">— Select a component —</option>` +
+    allComponents.map(c => `<option value="${c.item_id}">${c.part_name}</option>`).join('');
+
+  if (currentVal) {
+    select.value = currentVal;
+    onComponentDetailSelect();
+  }
+}
+
+function onComponentDetailSelect() {
+  const itemId = parseInt(document.getElementById('componentDetailSelect').value);
+  document.getElementById('componentDetailEmpty').style.display = itemId ? 'none' : '';
+  document.getElementById('componentDetailContent').style.display = itemId ? 'block' : 'none';
+  if (!itemId) return;
+  buildComponentDetail(itemId);
+}
+
+function buildComponentDetail(itemId) {
+  const item = state.items.find(i => i.item_id === itemId);
+  if (!item) return;
+
+  // Get net requirements rows for this component
+  const nrRows = state.netRequirements
+    .filter(r => r.component_item_id === itemId)
+    .sort((a,b) => a.week_start_date.localeCompare(b.week_start_date));
+
+  // Get inventory
+  const inv = state.inventory.find(i => i.item_id === itemId);
+  const onHand = inv ? parseFloat(inv.qty_on_hand) : 0;
+
+  // Get supplier info
+  const isRow = state.itemSuppliers.find(is => is.item_id === itemId);
+  const supplier = isRow ? state.suppliers.find(s => s.supplier_id === isRow.supplier_id) : null;
+  const leadDays = isRow?.lead_time_override || supplier?.lead_time_days || 0;
+
+  // Get open POs for this component
+  const componentPOs = state.openPOs.filter(p =>
+    p.item_id === itemId && ['OPEN','PARTIAL'].includes(p.po_status)
+  );
+
+  // Find projected stockout and order by date
+  const today = new Date();
+  let stockoutDate = null;
+  let orderByDate = null;
+  for (const row of nrRows) {
+    if (!stockoutDate && parseFloat(row.projected_balance) < 0) {
+      stockoutDate = row.week_start_date;
+      const sDate = new Date(stockoutDate);
+      const oDate = new Date(sDate);
+      oDate.setDate(oDate.getDate() - leadDays);
+      orderByDate = oDate;
+    }
+  }
+
+  // Avg weekly usage (next 12 weeks)
+  const twelveWeeksOut = new Date(today);
+  twelveWeeksOut.setDate(twelveWeeksOut.getDate() + 84);
+  const next12 = nrRows.filter(r => {
+    const d = new Date(r.week_start_date);
+    return d >= today && d <= twelveWeeksOut;
+  });
+  const avgUsage = next12.length > 0
+    ? next12.reduce((s,r) => s + parseFloat(r.gross_req||0), 0) / next12.length : 0;
+
+  // Status
+  let status = 'green', statusLabel = 'COVERED';
+  if (onHand === 0) { status = 'red'; statusLabel = 'OUT OF STOCK'; }
+  else if (orderByDate && orderByDate < today) { status = 'red'; statusLabel = 'ORDER NOW'; }
+  else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) { status = 'yellow'; statusLabel = 'ORDER SOON'; }
+
+  // ── KPI cards ──
+  const kpiColor = status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--green)';
+  const kpis = [
+    { label: 'On Hand', value: onHand.toLocaleString(), sub: 'units', color: onHand === 0 ? 'var(--red)' : 'var(--text)' },
+    { label: 'Avg Weekly Usage', value: avgUsage.toFixed(1), sub: 'units / week', color: 'var(--pw-blue)' },
+    { label: 'Lead Time', value: leadDays + 'd', sub: supplier?.supplier_name || '—', color: 'var(--text)' },
+    { label: 'Projected Stockout', value: onHand === 0 ? 'OUT' : (stockoutDate ? new Date(stockoutDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'), sub: stockoutDate ? `in ${Math.round((new Date(stockoutDate)-today)/604800000)}w` : 'No stockout forecast', color: status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--green)' },
+    { label: 'Order By', value: onHand === 0 ? 'OVERDUE' : (orderByDate ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})) : '—'), sub: '', color: kpiColor },
+  ];
+
+  document.getElementById('componentKPIs').innerHTML = kpis.map(k => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;min-width:0">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);font-family:var(--font-mono);margin-bottom:8px">${k.label}</div>
+      <div style="font-family:var(--font-display);font-size:32px;font-weight:700;color:${k.color};line-height:1;letter-spacing:-0.5px">${k.value}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">${k.sub}</div>
+    </div>`).join('');
+
+  // Status badge
+  document.getElementById('componentDetailStatus').innerHTML =
+    `<span class="pill ${status}" style="font-size:12px;padding:5px 12px">${statusLabel}</span>`;
+
+  // ── Usage chart ──
+  const weeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 20);
+  const weekLabels = weeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const usageData = weeks.map(r => Math.round(parseFloat(r.gross_req||0) * 10) / 10);
+
+  if (detailUsageChart) detailUsageChart.destroy();
+  const usageCtx = document.getElementById('usageChart').getContext('2d');
+  detailUsageChart = new Chart(usageCtx, {
+    type: 'bar',
+    data: {
+      labels: weekLabels,
+      datasets: [{
+        label: 'Weekly Demand',
+        data: usageData,
+        backgroundColor: weeks.map(r => {
+          const d = new Date(r.week_start_date);
+          const diff = Math.round((d - today) / 604800000);
+          return diff < 4 ? 'rgba(59,158,255,0.9)' : diff < 8 ? 'rgba(59,158,255,0.6)' : 'rgba(59,158,255,0.35)';
+        }),
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} units` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(28,46,74,0.5)' }, ticks: { maxRotation: 45, font: { size: 10 } } },
+        y: { grid: { color: 'rgba(28,46,74,0.5)' }, beginAtZero: true, title: { display: true, text: 'Units', color: '#2e4a6a' } }
+      }
+    }
+  });
+
+  // ── Stock position sawtooth chart ──
+  // Build week-by-week: start with on-hand, subtract usage, add PO receipts
+  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 20);
+  let runningStock = onHand;
+  const stockData = [];
+  const stockLabels = stockWeeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+
+  // Map PO receipts to weeks
+  const poReceiptsByWeek = {};
+  for (const po of componentPOs) {
+    if (!po.expected_receipt_date) continue;
+    // Snap to nearest week in our list
+    const receiptDate = po.expected_receipt_date;
+    // Find closest week
+    let closest = stockWeeks[0]?.week_start_date;
+    let minDiff = Infinity;
+    for (const row of stockWeeks) {
+      const diff = Math.abs(new Date(row.week_start_date) - new Date(receiptDate));
+      if (diff < minDiff) { minDiff = diff; closest = row.week_start_date; }
+    }
+    if (closest) {
+      poReceiptsByWeek[closest] = (poReceiptsByWeek[closest] || 0) + parseFloat(po.qty_outstanding || 0);
+    }
+  }
+
+  for (const row of stockWeeks) {
+    const usage = parseFloat(row.gross_req || 0);
+    const receipt = poReceiptsByWeek[row.week_start_date] || 0;
+    // Add receipt BEFORE subtracting usage (receipt arrives start of week)
+    runningStock = runningStock + receipt - usage;
+    stockData.push({ x: row.week_start_date, y: Math.round(runningStock), receipt, usage: Math.round(usage) });
+  }
+
+  if (detailStockChart) detailStockChart.destroy();
+  const stockCtx = document.getElementById('stockChart').getContext('2d');
+
+  // Safety stock line
+  const safetyStock = nrRows[0] ? parseFloat(nrRows[0].safety_stock || 0) : 0;
+
+  detailStockChart = new Chart(stockCtx, {
+    type: 'line',
+    data: {
+      labels: stockLabels,
+      datasets: [
+        {
+          label: 'Net On-Hand',
+          data: stockData.map(d => d.y),
+          borderColor: stockData.map(d => d.y < 0 ? 'rgba(240,78,94,0.9)' : 'rgba(59,158,255,0.9)'),
+          backgroundColor: 'rgba(59,158,255,0.08)',
+          borderWidth: 2.5,
+          pointBackgroundColor: stockData.map(d => d.y < 0 ? 'var(--red)' : d.y < safetyStock ? '#f5c842' : '#3b9eff'),
+          pointRadius: stockData.map((d,i) => (poReceiptsByWeek[stockWeeks[i]?.week_start_date] > 0) ? 7 : 4),
+          pointHoverRadius: 8,
+          tension: 0,
+          fill: true,
+          segment: {
+            borderColor: ctx => stockData[ctx.p1DataIndex]?.y < 0 ? 'rgba(240,78,94,0.9)' : 'rgba(59,158,255,0.9)',
+            backgroundColor: ctx => stockData[ctx.p1DataIndex]?.y < 0 ? 'rgba(240,78,94,0.05)' : 'rgba(59,158,255,0.06)',
+          }
+        },
+        ...(safetyStock > 0 ? [{
+          label: 'Safety Stock',
+          data: Array(stockLabels.length).fill(safetyStock),
+          borderColor: 'rgba(245,200,66,0.5)',
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+        }] : [])
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { display: safetyStock > 0, position: 'top', labels: { boxWidth: 16, padding: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.datasetIndex === 1) return ` Safety Stock: ${ctx.parsed.y}`;
+              const d = stockData[ctx.dataIndex];
+              const lines = [` Net On-Hand: ${ctx.parsed.y}`];
+              if (d?.receipt > 0) lines.push(` PO Receipt: +${d.receipt}`);
+              lines.push(` Usage: −${d?.usage}`);
+              return lines;
+            }
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: { grid: { color: 'rgba(28,46,74,0.5)' }, ticks: { maxRotation: 45, font: { size: 10 } } },
+        y: {
+          grid: { color: 'rgba(28,46,74,0.5)' },
+          title: { display: true, text: 'Units', color: '#2e4a6a' },
+          ticks: { callback: v => v < 0 ? v : v }
+        }
+      }
+    }
+  });
+
+  // ── PO receipts table ──
+  const poTbody = document.getElementById('componentPOsBody');
+  const supplierById = {};
+  for (const s of state.suppliers) supplierById[s.supplier_id] = s;
+
+  if (componentPOs.length === 0) {
+    poTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">No open POs for this component</td></tr>`;
+  } else {
+    poTbody.innerHTML = componentPOs.map(po => {
+      const sup = supplierById[po.supplier_id];
+      const receipt = po.expected_receipt_date ? new Date(po.expected_receipt_date+'T12:00:00') : null;
+      const daysOut = receipt ? Math.round((receipt - today) / 86400000) : null;
+      const isOverdue = daysOut !== null && daysOut < 0;
+      return `<tr>
+        <td class="mono" style="font-weight:600;color:var(--pw-blue)">${po.po_number}</td>
+        <td style="color:var(--text2)">${sup?.supplier_name || '—'}</td>
+        <td class="mono">${parseFloat(po.qty_outstanding||0).toLocaleString()}</td>
+        <td class="mono">${receipt ? receipt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'}</td>
+        <td class="mono" style="color:${isOverdue ? 'var(--red)' : daysOut < 14 ? 'var(--yellow)' : 'var(--text2)'}">${daysOut !== null ? (isOverdue ? `${Math.abs(daysOut)}d overdue` : `${daysOut}d`) : '—'}</td>
+        <td><span class="pill ${po.po_status === 'OPEN' ? 'blue' : 'yellow'}">${po.po_status}</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function jumpToComponentDetail(itemId) {
+  showScreen('component-detail');
+  const select = document.getElementById('componentDetailSelect');
+  if (select) {
+    select.value = itemId;
+    onComponentDetailSelect();
   }
 }
 
