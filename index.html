@@ -2424,9 +2424,9 @@ function renderPOs() {
       <td><span class="pill ${firstLine.po_status === 'OPEN' ? 'blue' : firstLine.po_status === 'PARTIAL' ? 'yellow' : 'gray'}">${firstLine.po_status}</span></td>
       <td>
         <div class="flex gap-8">
-          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal('${poNum}')">Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="copyPO('${poNum}')">Copy</button>
-          <button class="btn btn-danger btn-sm" onclick="deletePO('${poNum}')">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal(this.dataset.po)" data-po="${poNum}">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPO(this.dataset.po)" data-po="${poNum}">Copy</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePO(this.dataset.po)" data-po="${poNum}">Delete</button>
         </div>
       </td>
     </tr>`);
