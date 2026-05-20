@@ -2424,7 +2424,8 @@ function renderPOs() {
       <td><span class="pill ${firstLine.po_status === 'OPEN' ? 'blue' : firstLine.po_status === 'PARTIAL' ? 'yellow' : 'gray'}">${firstLine.po_status}</span></td>
       <td>
         <div class="flex gap-8">
-          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal('${poNum}')">Edit PO</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditPOModal('${poNum}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPO('${poNum}')">Copy</button>
           <button class="btn btn-danger btn-sm" onclick="deletePO('${poNum}')">Delete</button>
         </div>
       </td>
@@ -2456,6 +2457,37 @@ function renderPOs() {
   }
 
   tbody.innerHTML = rows.join('');
+}
+
+function copyPO(poNumber) {
+  const poLines = state.openPOs.filter(p => p.po_number === poNumber);
+  if (!poLines.length) return;
+  const firstLine = poLines[0];
+
+  // Generate a new PO number by appending -COPY
+  const newPoNumber = poNumber + '-COPY';
+
+  editingPOId = null; // new PO, not editing
+  poLineCounter = 0;
+
+  document.getElementById('poModalTitle').textContent = `Copy of PO — ${poNumber}`;
+  document.getElementById('poSaveBtn').textContent = 'Save New PO';
+  document.getElementById('po_number').value = newPoNumber;
+  document.getElementById('po_status').value = 'OPEN';
+  document.getElementById('po_order_date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('po_notes').value = firstLine.notes || '';
+
+  initSupplierSearchSelect('po_supplier_wrap', firstLine.supplier_id);
+
+  // Load all lines but clear receipt dates so user must set new ones
+  document.getElementById('poLinesBody').innerHTML = '';
+  for (const line of poLines) {
+    addPOLineRow({ ...line, expected_receipt_date: '' }); // clear arrival date
+  }
+  updatePOLineSummary();
+  document.getElementById('poModal').style.display = 'flex';
+  document.getElementById('po_number').focus();
+  document.getElementById('po_number').select(); // select so easy to rename
 }
 
 async function deletePO(poNumber) {
