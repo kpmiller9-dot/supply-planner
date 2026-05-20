@@ -2754,7 +2754,80 @@ function buildComponentDetail(itemId) {
   else if (orderByDate && orderByDate < today) { status = 'red'; statusLabel = 'ORDER NOW'; }
   else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) { status = 'yellow'; statusLabel = 'ORDER SOON'; }
 
-  // ── KPI cards ──
+  // ── Multi-shortage detection ──
+  // Find all shortage starts (first week of each new shortage event)
+  const shortageEvents = [];
+  let inShortage = false;
+  for (const row of nrRows) {
+    const nr = parseFloat(row.net_requirement || 0);
+    if (nr > 0 && !inShortage) {
+      shortageEvents.push({
+        week: row.week_start_date,
+        netReq: nr,
+        projBalance: parseFloat(row.projected_balance || 0),
+      });
+      inShortage = true;
+    } else if (nr === 0) {
+      inShortage = false;
+    }
+  }
+
+  // Build shortage callout HTML
+  let shortageCallout = '';
+  if (shortageEvents.length > 1) {
+    shortageCallout = `
+      <div style="background:rgba(240,78,94,0.08);border:1px solid rgba(240,78,94,0.3);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;gap:16px;align-items:flex-start">
+        <div style="font-size:22px;line-height:1;margin-top:2px">⚠</div>
+        <div>
+          <div style="font-weight:600;color:var(--red);font-size:13px;margin-bottom:6px">${shortageEvents.length} Shortage Windows Detected</div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px">
+            ${shortageEvents.map((e, i) => {
+              const sDate = new Date(e.week + 'T12:00:00');
+              const oDate = new Date(sDate);
+              oDate.setDate(oDate.getDate() - leadDays);
+              const daysUntilOrder = Math.round((oDate - today) / 86400000);
+              const isOverdue = daysUntilOrder < 0;
+              return `<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;min-width:180px">
+                <div style="font-size:10px;font-family:var(--font-mono);color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Order ${i+1}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">Need by ${sDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</div>
+                <div style="font-size:12px;color:${isOverdue ? 'var(--red)' : daysUntilOrder <= 14 ? 'var(--yellow)' : 'var(--green)'};font-family:var(--font-mono);margin-top:2px">
+                  Order by ${oDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}
+                  ${isOverdue ? ' · OVERDUE' : ` · in ${daysUntilOrder}d`}
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">Qty needed: ${Math.round(e.netReq).toLocaleString()}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>`;
+  } else if (shortageEvents.length === 1) {
+    const e = shortageEvents[0];
+    const sDate = new Date(e.week + 'T12:00:00');
+    const oDate = new Date(sDate);
+    oDate.setDate(oDate.getDate() - leadDays);
+    const daysUntilOrder = Math.round((oDate - today) / 86400000);
+    const isOverdue = daysUntilOrder < 0;
+    if (isOverdue || daysUntilOrder <= 14) {
+      shortageCallout = `
+        <div style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;gap:12px;align-items:center">
+          <div style="font-size:20px">⚠</div>
+          <div>
+            <span style="font-weight:600;color:var(--yellow)">Order needed ${isOverdue ? 'immediately' : 'within 2 weeks'}</span>
+            <span style="color:var(--text2);font-size:13px"> — stockout projected ${sDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}, order by ${oDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>
+          </div>
+        </div>`;
+    }
+  }
+
+  // Inject callout — use dedicated element, clear first to avoid duplicates
+  let calloutEl = document.getElementById('shortageCallout');
+  if (!calloutEl) {
+    calloutEl = document.createElement('div');
+    calloutEl.id = 'shortageCallout';
+    document.getElementById('componentDetailContent').prepend(calloutEl);
+  }
+  calloutEl.innerHTML = shortageCallout;
+
   const kpiColor = status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--green)';
   const kpis = [
     { label: 'On Hand', value: onHand.toLocaleString(), sub: 'units', color: onHand === 0 ? 'var(--red)' : 'var(--text)' },
