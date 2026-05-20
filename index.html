@@ -476,7 +476,7 @@ select.form-input option { background: var(--surface2); }
 /* FORECAST GRID */
 .forecast-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 .forecast-month-card {
@@ -1319,8 +1319,8 @@ async function loadNetRequirements() {
 
 async function loadForecast() {
   const today = new Date();
-  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  state.forecastData = await sbGet('monthly_forecast', `order=forecast_month&forecast_month=gte.${sixMonthsAgo}`);
+  const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  state.forecastData = await sbGet('monthly_forecast', `order=forecast_month&forecast_month=gte.${thisMonth}`);
 }
 
 async function loadOpenPOs() {
@@ -1651,7 +1651,7 @@ function renderForecastGrid() {
   const today = new Date();
   const grid = document.getElementById('forecastGrid');
   const months = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 12; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     months.push(d);
   }
@@ -1674,7 +1674,7 @@ async function saveForecast() {
   showLoading('Saving forecast...');
   try {
     const today = new Date();
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
       const key = d.toISOString().split('T')[0];
       const input = document.getElementById(`fc_${key}`);
@@ -1723,7 +1723,7 @@ async function generateFgForecast() {
   const today = new Date();
   const weeklyEntries = [];
 
-  for (let m = 0; m < 6; m++) {
+  for (let m = 0; m < 12; m++) {
     const monthStart = new Date(today.getFullYear(), today.getMonth() + m, 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + m + 1, 0);
     const key = monthStart.toISOString().split('T')[0];
@@ -2836,6 +2836,17 @@ function buildComponentDetail(itemId) {
     ? next12.reduce((s,r) => s + parseFloat(r.gross_req||0), 0) / next12.length : 0;
 
   // Status
+  // For covered components, calculate natural runout from on-hand / avg usage
+  let naturalRunoutDate = null;
+  let naturalOrderByDate = null;
+  if (!stockoutDate && avgUsage > 0 && onHand > 0) {
+    const weeksOfStock = onHand / avgUsage;
+    naturalRunoutDate = new Date(today);
+    naturalRunoutDate.setDate(naturalRunoutDate.getDate() + Math.round(weeksOfStock * 7));
+    naturalOrderByDate = new Date(naturalRunoutDate);
+    naturalOrderByDate.setDate(naturalOrderByDate.getDate() - leadDays);
+  }
+
   let status = 'green', statusLabel = 'COVERED';
   if (onHand === 0) {
     status = 'red'; statusLabel = 'OUT OF STOCK';
@@ -2944,11 +2955,17 @@ function buildComponentDetail(itemId) {
     },
     {
       label: 'Order By',
-      value: onHand === 0 ? 'OVERDUE' : (!stockoutDate ? '—' : orderByDate
-        ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}))
-        : '—'),
-      sub: stockoutDate && orderByDate && orderByDate >= today ? `in ${Math.round((orderByDate-today)/86400000)}d` : '',
-      color: stockoutDate ? kpiColor : 'var(--text3)'
+      value: onHand === 0 ? 'OVERDUE' : (!stockoutDate
+        ? (naturalOrderByDate
+            ? naturalOrderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})
+            : '—')
+        : orderByDate
+          ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}))
+          : '—'),
+      sub: !stockoutDate && naturalOrderByDate
+        ? `in ${Math.round((naturalOrderByDate-today)/86400000)}d · est.`
+        : (stockoutDate && orderByDate && orderByDate >= today ? `in ${Math.round((orderByDate-today)/86400000)}d` : ''),
+      color: !stockoutDate ? 'var(--text2)' : kpiColor
     },
   ];
 
