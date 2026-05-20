@@ -1065,12 +1065,12 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
             <div class="card">
               <div class="card-title">Forecasted Weekly Usage</div>
-              <div class="card-sub">Gross component demand from forecast × BOM · next 20 weeks</div>
+              <div class="card-sub">Gross component demand from forecast × BOM · next 52 weeks</div>
               <canvas id="usageChart" height="200"></canvas>
             </div>
             <div class="card">
               <div class="card-title">Net On-Hand Position</div>
-              <div class="card-sub">On-hand − cumulative usage + scheduled PO receipts · sawtooth view</div>
+              <div class="card-sub">On-hand − cumulative usage + scheduled PO receipts · sawtooth view · 52 weeks</div>
               <canvas id="stockChart" height="200"></canvas>
             </div>
           </div>
@@ -2826,11 +2826,11 @@ function buildComponentDetail(itemId) {
   }
 
   // Avg weekly usage (next 12 weeks)
-  const twelveWeeksOut = new Date(today);
-  twelveWeeksOut.setDate(twelveWeeksOut.getDate() + 84);
+  const twentyFourWeeksOut = new Date(today);
+  twentyFourWeeksOut.setDate(twentyFourWeeksOut.getDate() + 168);
   const next12 = nrRows.filter(r => {
     const d = new Date(r.week_start_date);
-    return d >= today && d <= twelveWeeksOut;
+    return d >= today && d <= twentyFourWeeksOut;
   });
   const avgUsage = next12.length > 0
     ? next12.reduce((s,r) => s + parseFloat(r.gross_req||0), 0) / next12.length : 0;
@@ -2981,7 +2981,7 @@ function buildComponentDetail(itemId) {
     `<span class="pill ${status}" style="font-size:12px;padding:5px 12px">${statusLabel}</span>`;
 
   // ── Usage chart ──
-  const weeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 20);
+  const weeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 52);
   const weekLabels = weeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
   const usageData = weeks.map(r => Math.round(parseFloat(r.gross_req||0) * 10) / 10);
 
@@ -3017,7 +3017,7 @@ function buildComponentDetail(itemId) {
 
   // ── Stock position sawtooth chart ──
   // Build week-by-week: start with on-hand, subtract usage, add PO receipts
-  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 20);
+  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 52);
   let runningStock = onHand;
   const stockData = [];
   const stockLabels = stockWeeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
