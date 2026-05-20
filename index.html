@@ -2600,10 +2600,6 @@ function addPOLineRow(existing = null) {
       <button onclick="removePOLineRow('${id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px" title="Remove line">×</button>
     </td>`;
 
-  // Set component if editing
-  if (existing?.item_id) {
-    tr.querySelector('.po-line-component').value = existing.item_id;
-  }
   tbody.appendChild(tr);
 
   // Init SearchSelect for this line's component
@@ -2616,7 +2612,6 @@ function addPOLineRow(existing = null) {
     `po_line_comp_${id}`,
     compOptions,
     (value) => {
-      // Auto-set receipt date from lead time when component selected
       const itemId = parseInt(value);
       const is = state.itemSuppliers.find(x => x.item_id === itemId);
       const sup = is ? state.suppliers.find(s => s.supplier_id === is.supplier_id) : null;
