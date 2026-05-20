@@ -1435,6 +1435,9 @@ function renderDashboard() {
     const isRow = supplierByItem[r.id];
     const supRow = isRow ? supplierById[isRow.supplier_id] : null;
     const leadDays = isRow?.lead_time_override || supRow?.lead_time_days || 30;
+    const safetyStockWeeks = parseFloat(isRow?.safety_stock_weeks || 4);
+    const redDays = safetyStockWeeks / 2 * 7;      // 2 weeks or less = red
+    const yellowDays = safetyStockWeeks * 7;         // 4 weeks or less = yellow
     r.leadDays = leadDays;
     r.supplier = supRow?.supplier_name || '—';
 
@@ -1449,7 +1452,8 @@ function renderDashboard() {
       const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
       r.daysUntilOrderBy = daysUntilOrderBy;
       if (daysUntilOrderBy < 0) r.status = 'red';
-      else if (daysUntilOrderBy <= 14) r.status = 'yellow';
+      else if (daysUntilOrderBy <= redDays) r.status = 'red';
+      else if (daysUntilOrderBy <= yellowDays) r.status = 'yellow';
       else r.status = 'green';
     } else if (r.stockoutDate) {
       const stockoutD = new Date(r.stockoutDate);
@@ -1459,7 +1463,8 @@ function renderDashboard() {
       const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
       r.daysUntilOrderBy = daysUntilOrderBy;
       if (daysUntilOrderBy < 0) r.status = 'red';
-      else if (daysUntilOrderBy <= 14) r.status = 'yellow';
+      else if (daysUntilOrderBy <= redDays) r.status = 'red';
+      else if (daysUntilOrderBy <= yellowDays) r.status = 'yellow';
       else r.status = 'green';
     } else {
       // No shortage in forecast window — still calculate a future order date
@@ -1501,6 +1506,9 @@ function renderDashboard() {
     const isRow = supplierByItem[r.id];
     const supRow = isRow ? supplierById[isRow.supplier_id] : null;
     const leadDays = isRow?.lead_time_override || supRow?.lead_time_days || 30;
+    const safetyStockWeeks = parseFloat(isRow?.safety_stock_weeks || 4);
+    const redDays = safetyStockWeeks / 2 * 7;
+    const yellowDays = safetyStockWeeks * 7;
     const refWeek = r.firstShortageWeek || r.stockoutDate;
     if (refWeek) {
       const shortageDate = new Date(refWeek);
@@ -1508,7 +1516,8 @@ function renderDashboard() {
       orderByDate.setDate(orderByDate.getDate() - leadDays);
       const days = Math.round((orderByDate - today) / 86400000);
       if (days < 0) return 'red';
-      if (days <= 14) return 'yellow';
+      if (days <= redDays) return 'red';
+      if (days <= yellowDays) return 'yellow';
     }
     return 'green';
   });
@@ -1537,6 +1546,9 @@ function renderDashboard() {
   tbody.innerHTML = rows.map(r => {
     const coveragePct = Math.min(100, (r.coverageWeeks / 20) * 100);
     const coverageColor = r.status;
+    const safetyStockWeeks = parseFloat(r.safetyStockWeeks || 4);
+    const redDays = safetyStockWeeks / 2 * 7;
+    const yellowDays = safetyStockWeeks * 7;
 
     // Stockout cell — just the date, or OUT if zero on hand
     let stockoutCell;
@@ -1556,11 +1568,12 @@ function renderDashboard() {
       orderByCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px">OVERDUE</span>`;
     } else if (r.orderByDate) {
       const isOverdue = r.daysUntilOrderBy < 0;
-      const isSoon = r.daysUntilOrderBy >= 0 && r.daysUntilOrderBy <= 14;
-      if (isOverdue) {
-        orderByCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px;letter-spacing:0.5px">OVERDUE</span>`;
+      const isRed = r.daysUntilOrderBy <= redDays;
+      const isYellow = r.daysUntilOrderBy <= yellowDays;
+      if (isOverdue || isRed) {
+        orderByCell = `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px">${isOverdue ? 'OVERDUE' : r.orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
       } else {
-        const color = isSoon ? 'var(--yellow)' : 'var(--green)';
+        const color = isYellow ? 'var(--yellow)' : 'var(--green)';
         orderByCell = `<span style="font-family:var(--font-mono);color:${color}">${r.orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
       }
     } else {
@@ -1623,7 +1636,10 @@ function renderRecommendations() {
   tbody.innerHTML = recs.map(r => {
     const orderBy = new Date(r.order_by_date);
     const daysUntil = Math.round((orderBy - today) / 86400000);
-    const urgency = daysUntil < 0 ? 'red' : daysUntil <= 14 ? 'yellow' : 'green';
+    const safetyStockWeeks = parseFloat(r.safety_stock_weeks || 4);
+    const redDays = safetyStockWeeks / 2 * 7;
+    const yellowDays = safetyStockWeeks * 7;
+    const urgency = daysUntil < 0 ? 'red' : daysUntil <= redDays ? 'red' : daysUntil <= yellowDays ? 'yellow' : 'green';
     const orderByLabel = daysUntil < 0
       ? `<span style="font-family:var(--font-mono);font-weight:700;color:var(--red);font-size:11px">OVERDUE</span>`
       : `<span class="mono" style="color:${urgency === 'yellow' ? 'var(--yellow)' : 'var(--text)'}">${orderBy.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</span>`;
@@ -2944,10 +2960,12 @@ function buildComponentDetail(itemId) {
               oDate.setDate(oDate.getDate() - leadDays);
               const daysUntilOrder = Math.round((oDate - today) / 86400000);
               const isOverdue = daysUntilOrder < 0;
+              const ssWks = parseFloat(nrRows[0]?.safety_stock_weeks || 4);
+              const orderColor = isOverdue || daysUntilOrder <= ssWks/2*7 ? 'var(--red)' : daysUntilOrder <= ssWks*7 ? 'var(--yellow)' : 'var(--green)';
               return `<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;min-width:180px">
                 <div style="font-size:10px;font-family:var(--font-mono);color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Order ${i+1}</div>
                 <div style="font-size:13px;font-weight:600;color:var(--text)">Need by ${sDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</div>
-                <div style="font-size:12px;color:${isOverdue ? 'var(--red)' : daysUntilOrder <= 14 ? 'var(--yellow)' : 'var(--green)'};font-family:var(--font-mono);margin-top:2px">
+                <div style="font-size:12px;color:${orderColor};font-family:var(--font-mono);margin-top:2px">
                   Order by ${oDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}
                   ${isOverdue ? ' · OVERDUE' : ` · in ${daysUntilOrder}d`}
                 </div>
@@ -2963,7 +2981,8 @@ function buildComponentDetail(itemId) {
     oDate.setDate(oDate.getDate() - leadDays);
     const daysUntilOrder = Math.round((oDate - today) / 86400000);
     const isOverdue = daysUntilOrder < 0;
-    if (isOverdue || daysUntilOrder <= 14) {
+    const ssWks = parseFloat(nrRows[0]?.safety_stock_weeks || 4);
+    if (isOverdue || daysUntilOrder <= ssWks * 7) {
       shortageCallout = `
         <div style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;gap:12px;align-items:center">
           <div style="font-size:20px">⚠</div>
