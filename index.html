@@ -2754,16 +2754,13 @@ function renderComponentDetail() {
     .sort((a,b) => a.part_name.localeCompare(b.part_name))
     .map(c => ({ value: String(c.item_id), label: c.part_name }));
 
-  if (!searchSelects['componentDetailSelect']) {
-    searchSelects['componentDetailSelect'] = new SearchSelect(
-      'componentDetailSelectWrap',
-      allComponents,
-      (value) => { onComponentDetailSelect(value); },
-      'Search components...'
-    );
-  } else {
-    searchSelects['componentDetailSelect'].setOptions(allComponents);
-  }
+  // Always re-create so DOM is fresh after navigation
+  searchSelects['componentDetailSelect'] = new SearchSelect(
+    'componentDetailSelectWrap',
+    allComponents,
+    (value) => { onComponentDetailSelect(value); },
+    'Search components...'
+  );
 }
 
 function onComponentDetailSelect(itemId) {
@@ -2776,40 +2773,56 @@ function onComponentDetailSelect(itemId) {
 }
 
 function buildComponentDetail(itemId) {
-  const item = state.items.find(i => i.item_id === itemId);
-  if (!item) return;
+  try {
+  const item = state.items.find(i => parseInt(i.item_id) === itemId);
+  if (!item) { toast('Component not found', 'error'); return; }
+
+  const today = new Date();
 
   // Get net requirements rows for this component
   const nrRows = state.netRequirements
-    .filter(r => r.component_item_id === itemId)
+    .filter(r => parseInt(r.component_item_id) === itemId)
     .sort((a,b) => a.week_start_date.localeCompare(b.week_start_date));
 
   // Get inventory
-  const inv = state.inventory.find(i => i.item_id === itemId);
+  const inv = state.inventory.find(i => parseInt(i.item_id) === itemId);
   const onHand = inv ? parseFloat(inv.qty_on_hand) : 0;
 
   // Get supplier info
-  const isRow = state.itemSuppliers.find(is => is.item_id === itemId);
-  const supplier = isRow ? state.suppliers.find(s => s.supplier_id === isRow.supplier_id) : null;
+  const isRow = state.itemSuppliers.find(is => parseInt(is.item_id) === itemId);
+  const supplier = isRow ? state.suppliers.find(s => parseInt(s.supplier_id) === parseInt(isRow.supplier_id)) : null;
   const leadDays = isRow?.lead_time_override || supplier?.lead_time_days || 0;
 
   // Get open POs for this component
   const componentPOs = state.openPOs.filter(p =>
-    p.item_id === itemId && ['OPEN','PARTIAL'].includes(p.po_status)
+    parseInt(p.item_id) === itemId && ['OPEN','PARTIAL'].includes(p.po_status)
   );
 
-  // Find projected stockout and order by date
-  const today = new Date();
-  let stockoutDate = null;
+  // Find projected stockout (projected_balance goes negative) and first shortage (below safety stock)
+  let stockoutDate = null;   // actual zero/negative
+  let firstShortageDate = null; // below safety stock
   let orderByDate = null;
+
   for (const row of nrRows) {
-    if (!stockoutDate && parseFloat(row.projected_balance) < 0) {
+    const pb = parseFloat(row.projected_balance || 0);
+    const nr = parseFloat(row.net_requirement || 0);
+    // True stockout = balance goes negative
+    if (!stockoutDate && pb < 0) {
       stockoutDate = row.week_start_date;
-      const sDate = new Date(stockoutDate);
-      const oDate = new Date(sDate);
-      oDate.setDate(oDate.getDate() - leadDays);
-      orderByDate = oDate;
     }
+    // Safety stock shortage = net_requirement > 0
+    if (!firstShortageDate && nr > 0) {
+      firstShortageDate = row.week_start_date;
+    }
+  }
+
+  // Use stockoutDate for KPIs (actual zero), firstShortageDate for order-by calculation
+  const refDate = stockoutDate || firstShortageDate;
+  if (refDate) {
+    const sDate = new Date(refDate + 'T12:00:00');
+    const oDate = new Date(sDate);
+    oDate.setDate(oDate.getDate() - leadDays);
+    orderByDate = oDate;
   }
 
   // Avg weekly usage (next 12 weeks)
@@ -2824,24 +2837,30 @@ function buildComponentDetail(itemId) {
 
   // Status
   let status = 'green', statusLabel = 'COVERED';
-  if (onHand === 0) { status = 'red'; statusLabel = 'OUT OF STOCK'; }
-  else if (orderByDate && orderByDate < today) { status = 'red'; statusLabel = 'ORDER NOW'; }
-  else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) { status = 'yellow'; statusLabel = 'ORDER SOON'; }
+  if (onHand === 0) {
+    status = 'red'; statusLabel = 'OUT OF STOCK';
+  } else if (orderByDate && orderByDate < today) {
+    if (stockoutDate) { status = 'red'; statusLabel = 'ORDER NOW'; }
+    else { status = 'yellow'; statusLabel = 'BELOW SAFETY STOCK'; }
+  } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) {
+    status = 'yellow'; statusLabel = stockoutDate ? 'ORDER SOON' : 'MONITOR';
+  }
 
-  // ── Multi-shortage detection ──
-  // Find all shortage starts (first week of each new shortage event)
+  // ── Multi-shortage detection (actual stockouts only — projected_balance < 0) ──
   const shortageEvents = [];
   let inShortage = false;
   for (const row of nrRows) {
+    const pb = parseFloat(row.projected_balance || 0);
     const nr = parseFloat(row.net_requirement || 0);
-    if (nr > 0 && !inShortage) {
+    // Only flag actual stockouts (balance goes negative), not safety stock breaches
+    if (pb < 0 && !inShortage) {
       shortageEvents.push({
         week: row.week_start_date,
         netReq: nr,
-        projBalance: parseFloat(row.projected_balance || 0),
+        projBalance: pb,
       });
       inShortage = true;
-    } else if (nr === 0) {
+    } else if (pb >= 0) {
       inShortage = false;
     }
   }
@@ -2906,8 +2925,24 @@ function buildComponentDetail(itemId) {
     { label: 'On Hand', value: onHand.toLocaleString(), sub: 'units', color: onHand === 0 ? 'var(--red)' : 'var(--text)' },
     { label: 'Avg Weekly Usage', value: avgUsage.toFixed(1), sub: 'units / week', color: 'var(--pw-blue)' },
     { label: 'Lead Time', value: leadDays + 'd', sub: supplier?.supplier_name || '—', color: 'var(--text)' },
-    { label: 'Projected Stockout', value: onHand === 0 ? 'OUT' : (stockoutDate ? new Date(stockoutDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'), sub: stockoutDate ? `in ${Math.round((new Date(stockoutDate)-today)/604800000)}w` : 'No stockout forecast', color: status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--green)' },
-    { label: 'Order By', value: onHand === 0 ? 'OVERDUE' : (orderByDate ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})) : '—'), sub: '', color: kpiColor },
+    {
+      label: 'Projected Stockout',
+      value: onHand === 0 ? 'OUT' : (stockoutDate
+        ? new Date(stockoutDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})
+        : '—'),
+      sub: stockoutDate
+        ? `in ${Math.round((new Date(stockoutDate)-today)/604800000)}w`
+        : firstShortageDate ? 'Below safety stock' : 'No stockout forecast',
+      color: stockoutDate ? (status === 'red' ? 'var(--red)' : 'var(--yellow)') : firstShortageDate ? 'var(--yellow)' : 'var(--green)'
+    },
+    {
+      label: 'Order By',
+      value: onHand === 0 ? 'OVERDUE' : (orderByDate
+        ? (orderByDate < today ? 'OVERDUE' : orderByDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}))
+        : '—'),
+      sub: orderByDate && orderByDate >= today ? `in ${Math.round((orderByDate-today)/86400000)}d` : '',
+      color: kpiColor
+    },
   ];
 
   document.getElementById('componentKPIs').innerHTML = kpis.map(k => `
@@ -3079,14 +3114,23 @@ function buildComponentDetail(itemId) {
       </tr>`;
     }).join('');
   }
+  // end try
+  } catch(e) {
+    console.error('Component detail error:', e);
+    toast('Error loading component detail: ' + e.message, 'error');
+  }
 }
 
 function jumpToComponentDetail(itemId) {
   showScreen('component-detail');
-  const select = document.getElementById('componentDetailSelect');
-  if (select) {
-    select.value = itemId;
-    onComponentDetailSelect();
+  // Use SearchSelect to set value
+  const ss = searchSelects['componentDetailSelect'];
+  if (ss) {
+    const item = state.items.find(i => parseInt(i.item_id) === itemId);
+    if (item) {
+      ss.setValue(String(itemId), item.part_name);
+      onComponentDetailSelect(String(itemId));
+    }
   }
 }
 
