@@ -3081,7 +3081,7 @@ function buildComponentDetail(itemId) {
   });
 
   // Store data for redraw
-  window._stockChartData = { nrRows, onHand, componentPOs, today };
+  window._stockChartData = { nrRows, today };
 
   drawStockChart(52);
 
@@ -3232,28 +3232,17 @@ function drawStockChart(weeks) {
   const { nrRows, onHand, componentPOs, today } = d;
 
   const stockWeeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, weeks);
-  let runningStock = onHand;
-  const stockData = [];
-  const stockLabels = stockWeeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
 
-  const poReceiptsByWeek = {};
-  for (const po of componentPOs) {
-    if (!po.expected_receipt_date) continue;
-    let closest = stockWeeks[0]?.week_start_date;
-    let minDiff = Infinity;
-    for (const row of stockWeeks) {
-      const diff = Math.abs(new Date(row.week_start_date) - new Date(po.expected_receipt_date));
-      if (diff < minDiff) { minDiff = diff; closest = row.week_start_date; }
-    }
-    if (closest) poReceiptsByWeek[closest] = (poReceiptsByWeek[closest] || 0) + parseFloat(po.qty_outstanding || 0);
-  }
+  // Read projected_balance directly from view — it already accounts for PO receipts
+  const stockData = stockWeeks.map(r => ({
+    y: Math.round(parseFloat(r.projected_balance || 0)),
+    receipt: Math.round(parseFloat(r.scheduled_receipts || 0)),
+    usage: Math.round(parseFloat(r.gross_req || 0))
+  }));
 
-  for (const row of stockWeeks) {
-    const usage = parseFloat(row.gross_req || 0);
-    const receipt = poReceiptsByWeek[row.week_start_date] || 0;
-    runningStock = runningStock + receipt - usage;
-    stockData.push({ y: Math.round(runningStock), receipt, usage: Math.round(usage) });
-  }
+  const stockLabels = stockWeeks.map(r =>
+    new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+  );
 
   if (detailStockChart) detailStockChart.destroy();
   const canvas = document.getElementById('stockChart');
@@ -3272,7 +3261,7 @@ function drawStockChart(weeks) {
           backgroundColor: 'rgba(59,158,255,0.08)',
           borderWidth: 2.5,
           pointBackgroundColor: stockData.map(d => d.y < 0 ? '#f04e5e' : d.y < safetyStock ? '#f5c842' : '#3b9eff'),
-          pointRadius: stockData.map((d, i) => poReceiptsByWeek[stockWeeks[i]?.week_start_date] > 0 ? 7 : 4),
+          pointRadius: stockData.map(d => d.receipt > 0 ? 7 : 4),
           pointHoverRadius: 8,
           tension: 0,
           fill: true,
