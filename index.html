@@ -1698,6 +1698,7 @@ async function saveForecast() {
       }
     }
     await loadForecast();
+    await loadForecast(); // reload so all 12 months are in state before blowdown
     await generateFgForecast();
     await loadNetRequirements();
     await loadRecommendations();
