@@ -937,8 +937,10 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
               <div class="card-title">Open Purchase Orders</div>
               <div class="card-subtitle">All inbound stock — drives projected balance and coverage calculations</div>
             </div>
-            <div class="flex gap-8">
-              <select class="form-input" style="width:160px;padding:6px 10px" id="poFilterStatus" onchange="renderPOs()">
+            <div class="flex gap-8" style="align-items:center">
+              <input type="text" class="form-input" id="poSearch" placeholder="Search component or supplier..."
+                style="width:240px;padding:6px 10px" oninput="renderPOs()">
+              <select class="form-input" style="width:140px;padding:6px 10px" id="poFilterStatus" onchange="renderPOs()">
                 <option value="">All Status</option>
                 <option value="OPEN">Open</option>
                 <option value="PARTIAL">Partial</option>
@@ -2588,6 +2590,7 @@ let poLineCounter = 0;
 function renderPOs() {
   const tbody = document.getElementById('posBody');
   const filterStatus = document.getElementById('poFilterStatus')?.value || '';
+  const search = (document.getElementById('poSearch')?.value || '').toLowerCase().trim();
 
   const itemById = {};
   for (const i of state.items) itemById[i.item_id] = i;
@@ -2596,6 +2599,17 @@ function renderPOs() {
 
   let pos = [...state.openPOs];
   if (filterStatus) pos = pos.filter(p => p.po_status === filterStatus);
+
+  // Apply search — match against component name or supplier name
+  if (search) {
+    pos = pos.filter(p => {
+      const item = itemById[p.item_id];
+      const supplier = supplierById[p.supplier_id];
+      return (item?.part_name || '').toLowerCase().includes(search) ||
+             (supplier?.supplier_name || '').toLowerCase().includes(search) ||
+             (p.po_number || '').toLowerCase().includes(search);
+    });
+  }
 
   if (pos.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◎</div>
