@@ -211,6 +211,12 @@ body {
   border: 1px solid rgba(255,77,106,0.3);
 }
 .btn-danger:hover { background: rgba(255,77,106,0.2); }
+.btn-success {
+  background: rgba(34,214,138,0.12);
+  color: var(--green);
+  border: 1px solid rgba(34,214,138,0.3);
+}
+.btn-success:hover { background: rgba(34,214,138,0.22); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
 /* CARDS */
@@ -2258,7 +2264,11 @@ function renderComponents() {
           min="1" step="1" title="Edit minimum order quantity">
       </td>
       <td style="color:var(--text2);font-size:12px">${c.supplierName}</td>
-      <td class="mono">${c.onHand.toLocaleString()}</td>
+      <td class="mono">
+        <input type="number" class="inline-edit-input" value="${c.onHand}"
+          onchange="updateOnHand(${c.item_id}, this.value)"
+          min="0" step="1" title="Edit on-hand quantity — creates inventory adjustment">
+      </td>
       <td class="mono" style="color:${status === 'red' ? 'var(--red)' : status === 'yellow' ? 'var(--yellow)' : 'var(--text2)'}">${c.daysSupply}d</td>
       <td><span class="pill ${status}">${status === 'red' ? 'CRITICAL' : status === 'yellow' ? 'LOW' : 'OK'}</span></td>
     </tr>`;
@@ -2293,6 +2303,36 @@ async function updateSafetyStock(itemId, itemSupplierId, val) {
     }
     await loadNetRequirements();
     toast(`Safety stock updated`, 'success');
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+  }
+}
+
+async function updateOnHand(itemId, val) {
+  const qty = parseFloat(val);
+  if (isNaN(qty) || qty < 0) return;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory_snapshot?on_conflict=item_id,snapshot_date`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=representation'
+      },
+      body: JSON.stringify([{
+        item_id: parseInt(itemId),
+        snapshot_date: today,
+        qty_on_hand: qty,
+        uploaded_at: new Date().toISOString()
+      }])
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadInventory();
+    await loadNetRequirements();
+    renderDashboard();
+    toast(`On-hand updated to ${qty.toLocaleString()}`, 'success');
   } catch(e) {
     toast(`Error: ${e.message}`, 'error');
   }
@@ -2645,6 +2685,7 @@ function renderPOs() {
         <div class="flex gap-8">
           <button class="btn btn-ghost btn-sm" onclick="openEditPOModal(this.dataset.po)" data-po="${poNum}">Edit</button>
           <button class="btn btn-ghost btn-sm" onclick="copyPO(this.dataset.po)" data-po="${poNum}">Copy</button>
+          <button class="btn btn-success btn-sm" onclick="markPOReceived(this.dataset.po)" data-po="${poNum}">✓ Received</button>
           <button class="btn btn-danger btn-sm" onclick="deletePO(this.dataset.po)" data-po="${poNum}">Delete</button>
         </div>
       </td>
@@ -2707,6 +2748,78 @@ function copyPO(poNumber) {
   document.getElementById('poModal').style.display = 'flex';
   document.getElementById('po_number').focus();
   document.getElementById('po_number').select(); // select so easy to rename
+}
+
+async function markPOReceived(poNumber) {
+  const poLines = state.openPOs.filter(p => p.po_number === poNumber);
+  if (!poLines.length) return;
+
+  const totalByItem = {};
+  for (const line of poLines) {
+    const outstanding = parseFloat(line.qty_outstanding || 0);
+    if (outstanding > 0) {
+      totalByItem[line.item_id] = (totalByItem[line.item_id] || 0) + outstanding;
+    }
+  }
+
+  const itemNames = poLines.map(l => {
+    const item = state.items.find(i => parseInt(i.item_id) === parseInt(l.item_id));
+    return item?.part_name || `Item #${l.item_id}`;
+  }).filter((v,i,a) => a.indexOf(v) === i).join(', ');
+
+  const totalQty = Object.values(totalByItem).reduce((s,v) => s+v, 0);
+  if (!confirm(`Mark PO ${poNumber} as fully received?\n\nThis will:\n• Close the PO\n• Add ${Math.round(totalQty)} units to on-hand inventory\n\nComponents: ${itemNames}`)) return;
+
+  showLoading('Closing PO and updating inventory...');
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Close all lines
+    for (const line of poLines) {
+      await sbPatch('open_purchase_orders',
+        `po_line_id=eq.${line.po_line_id}`,
+        { po_status: 'CLOSED', qty_received: parseFloat(line.qty_ordered) }
+      );
+    }
+
+    // Update inventory for each component
+    for (const [itemId, qty] of Object.entries(totalByItem)) {
+      const existing = state.inventory.find(i => parseInt(i.item_id) === parseInt(itemId));
+      const currentQty = existing ? parseFloat(existing.qty_on_hand) : 0;
+      const newQty = currentQty + qty;
+
+      // Upsert today's snapshot
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory_snapshot?on_conflict=item_id,snapshot_date`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=representation'
+        },
+        body: JSON.stringify([{
+          item_id: parseInt(itemId),
+          snapshot_date: today,
+          qty_on_hand: newQty,
+          uploaded_at: new Date().toISOString()
+        }])
+      });
+      if (!res.ok) throw new Error(await res.text());
+    }
+
+    await loadOpenPOs();
+    await loadInventory();
+    await loadNetRequirements();
+    await loadRecommendations();
+    renderPOs();
+    renderDashboard();
+    toast(`PO ${poNumber} closed — inventory updated`, 'success');
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
 }
 
 async function deletePO(poNumber) {
