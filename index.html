@@ -3393,9 +3393,6 @@ function buildComponentDetail(itemId) {
     }
   });
 
-  // Store data for redraw
-  window._stockChartData = { nrRows, today };
-
   drawStockChart(52);
 
 
@@ -3540,11 +3537,16 @@ function redrawStockChart() {
 }
 
 function drawStockChart(weeks) {
-  const d = window._stockChartData;
-  if (!d) return;
-  const { nrRows, onHand, componentPOs, today } = d;
+  const itemId = parseInt(searchSelects['componentDetailSelect']?.getValue());
+  if (!itemId) return;
 
-  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, weeks);
+  const today = new Date();
+  // Always read fresh from state — never use cached data
+  const nrRows = state.netRequirements
+    .filter(r => parseInt(r.component_item_id) === itemId)
+    .sort((a,b) => a.week_start_date.localeCompare(b.week_start_date));
+
+  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date + 'T12:00:00') >= today).slice(0, weeks);
 
   // Read projected_balance directly from view — it already accounts for PO receipts
   const stockData = stockWeeks.map(r => ({
