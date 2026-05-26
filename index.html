@@ -1373,7 +1373,11 @@ function renderCurrentScreen() {
   if (name === 'dashboard') renderDashboard();
   if (name === 'recommendations') renderRecommendations();
   if (name === 'forecast') renderForecast();
-  if (name === 'component-detail') renderComponentDetail();
+  if (name === 'component-detail') {
+    renderComponentDetail();
+    const ss = searchSelects['componentDetailSelect'];
+    if (ss?.getValue()) onComponentDetailSelect(ss.getValue());
+  }
   if (name === 'pos') renderPOs();
   if (name === 'components') renderComponents();
 }
