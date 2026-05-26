@@ -3541,12 +3541,16 @@ function drawStockChart(weeks) {
   if (!itemId) return;
 
   const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // Monday
+  weekStart.setHours(0,0,0,0);
+
   // Always read fresh from state — never use cached data
   const nrRows = state.netRequirements
     .filter(r => parseInt(r.component_item_id) === itemId)
     .sort((a,b) => a.week_start_date.localeCompare(b.week_start_date));
 
-  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date + 'T12:00:00') >= today).slice(0, weeks);
+  const stockWeeks = nrRows.filter(r => new Date(r.week_start_date + 'T00:00:00') >= weekStart).slice(0, weeks);
 
   // Read projected_balance directly from view — it already accounts for PO receipts
   const stockData = stockWeeks.map(r => ({
