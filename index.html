@@ -1075,25 +1075,20 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
           <!-- KPI row -->
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px" id="componentKPIs"></div>
 
-          <!-- Charts row -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-            <div class="card">
-              <div class="card-title">Forecasted Weekly Usage</div>
-              <div class="card-sub">Gross component demand from forecast × BOM · next 52 weeks</div>
-              <canvas id="usageChart" height="200"></canvas>
-            </div>
-            <div class="card">
-              <div class="card-title">Net On-Hand Position</div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                <div class="card-sub" style="margin:0">On-hand − cumulative usage + scheduled PO receipts · sawtooth view · 52 weeks</div>
-                <select id="stockChartHorizon" onchange="redrawStockChart()" class="form-input" style="width:120px;padding:4px 8px;font-size:11px;font-family:var(--font-mono)">
-                  <option value="12">12 weeks</option>
-                  <option value="26">26 weeks</option>
-                  <option value="52" selected>52 weeks</option>
-                </select>
+          <!-- Charts row - single combined chart -->
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-header" style="margin-bottom:8px">
+              <div>
+                <div class="card-title">Net On-Hand Position + Weekly Usage</div>
+                <div class="card-sub">Projected balance (line) + weekly demand (bars) · sawtooth view</div>
               </div>
-              <canvas id="stockChart" height="200"></canvas>
+              <select id="stockChartHorizon" onchange="redrawStockChart()" class="form-input" style="width:120px;padding:4px 8px;font-size:11px;font-family:var(--font-mono)">
+                <option value="12">12 weeks</option>
+                <option value="26" selected>26 weeks</option>
+                <option value="52">52 weeks</option>
+              </select>
             </div>
+            <canvas id="stockChart" height="220" style="max-height:560px"></canvas>
           </div>
 
           <!-- PO receipts table -->
@@ -3222,20 +3217,24 @@ function buildComponentDetail(itemId) {
     naturalOrderByDate.setDate(naturalOrderByDate.getDate() - leadDays);
   }
 
+  const ssWks = parseFloat(isRow?.safety_stock_weeks || nrRows[0]?.safety_stock_weeks || 4);
+  const redDays = ssWks / 2 * 7;
+  const yellowDays = ssWks * 7;
+
   let status = 'green', statusLabel = 'COVERED';
   if (onHand === 0) {
     status = 'red'; statusLabel = 'OUT OF STOCK';
   } else if (stockoutDate) {
-    // Only flag urgency if balance actually goes negative
     if (orderByDate && orderByDate < today) {
       status = 'red'; statusLabel = 'ORDER NOW';
-    } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= 14) {
+    } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= redDays) {
+      status = 'red'; statusLabel = 'ORDER NOW';
+    } else if (orderByDate && Math.round((orderByDate - today)/86400000) <= yellowDays) {
       status = 'yellow'; statusLabel = 'ORDER SOON';
     } else {
       status = 'yellow'; statusLabel = 'PLAN ORDER';
     }
   } else {
-    // No actual stockout — covered regardless of safety stock math
     status = 'green'; statusLabel = 'COVERED';
   }
 
@@ -3358,42 +3357,11 @@ function buildComponentDetail(itemId) {
   document.getElementById('componentDetailStatus').innerHTML =
     `<span class="pill ${status}" style="font-size:12px;padding:5px 12px">${statusLabel}</span>`;
 
-  // ── Usage chart ──
-  const weeks = nrRows.filter(r => new Date(r.week_start_date) >= today).slice(0, 52);
-  const weekLabels = weeks.map(r => new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-  const usageData = weeks.map(r => Math.round(parseFloat(r.gross_req||0) * 10) / 10);
+  // Reset horizon selector to default 26 weeks
+  const horizonEl = document.getElementById('stockChartHorizon');
+  if (horizonEl) horizonEl.value = '26';
 
-  if (detailUsageChart) detailUsageChart.destroy();
-  const usageCtx = document.getElementById('usageChart').getContext('2d');
-  detailUsageChart = new Chart(usageCtx, {
-    type: 'bar',
-    data: {
-      labels: weekLabels,
-      datasets: [{
-        label: 'Weekly Demand',
-        data: usageData,
-        backgroundColor: weeks.map(r => {
-          const d = new Date(r.week_start_date);
-          const diff = Math.round((d - today) / 604800000);
-          return diff < 4 ? 'rgba(59,158,255,0.9)' : diff < 8 ? 'rgba(59,158,255,0.6)' : 'rgba(59,158,255,0.35)';
-        }),
-        borderRadius: 3,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} units` } }
-      },
-      scales: {
-        x: { grid: { color: 'rgba(28,46,74,0.5)' }, ticks: { maxRotation: 45, font: { size: 10 } } },
-        y: { grid: { color: 'rgba(28,46,74,0.5)' }, beginAtZero: true, title: { display: true, text: 'Units', color: '#2e4a6a' } }
-      }
-    }
-  });
-
-  drawStockChart(52);
+  drawStockChart(26);
 
 
   // ── PO receipts table ──
@@ -3563,33 +3531,49 @@ function drawStockChart(weeks) {
     new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
   );
 
+  // Cap Y minimum at -500 regardless of how negative the data goes
+  const yMin = Math.max(-500, Math.min(0, ...stockData.map(d => d.y)));
+
   if (detailStockChart) detailStockChart.destroy();
   const canvas = document.getElementById('stockChart');
   if (!canvas) return;
   const safetyStock = nrRows[0] ? parseFloat(nrRows[0].safety_stock || 0) : 0;
 
   detailStockChart = new Chart(canvas.getContext('2d'), {
-    type: 'line',
+    type: 'bar',
     data: {
       labels: stockLabels,
       datasets: [
         {
+          type: 'line',
           label: 'Net On-Hand',
           data: stockData.map(d => d.y),
           borderColor: 'rgba(59,158,255,0.9)',
-          backgroundColor: 'rgba(59,158,255,0.08)',
+          backgroundColor: 'rgba(59,158,255,0.06)',
           borderWidth: 2.5,
-          pointBackgroundColor: stockData.map(d => d.y < 0 ? '#f04e5e' : d.y < safetyStock ? '#f5c842' : '#3b9eff'),
+          pointBackgroundColor: stockData.map(d => d.y < 0 ? '#f04e5e' : d.receipt > 0 ? '#f5c842' : '#3b9eff'),
           pointRadius: stockData.map(d => d.receipt > 0 ? 7 : 4),
           pointHoverRadius: 8,
           tension: 0,
           fill: true,
+          order: 1,
           segment: {
             borderColor: ctx => stockData[ctx.p1DataIndex]?.y < 0 ? 'rgba(240,78,94,0.9)' : 'rgba(59,158,255,0.9)',
-            backgroundColor: ctx => stockData[ctx.p1DataIndex]?.y < 0 ? 'rgba(240,78,94,0.05)' : 'rgba(59,158,255,0.06)',
+            backgroundColor: ctx => stockData[ctx.p1DataIndex]?.y < 0 ? 'rgba(240,78,94,0.04)' : 'rgba(59,158,255,0.06)',
           }
         },
+        {
+          type: 'bar',
+          label: 'Weekly Usage',
+          data: stockData.map(d => d.usage),
+          backgroundColor: 'rgba(107,138,255,0.25)',
+          borderColor: 'rgba(107,138,255,0.4)',
+          borderWidth: 1,
+          borderRadius: 2,
+          order: 2,
+        },
         ...(safetyStock > 0 ? [{
+          type: 'line',
           label: 'Safety Stock',
           data: Array(stockLabels.length).fill(safetyStock),
           borderColor: 'rgba(245,200,66,0.5)',
@@ -3597,29 +3581,43 @@ function drawStockChart(weeks) {
           borderDash: [6, 4],
           pointRadius: 0,
           fill: false,
+          order: 0,
         }] : [])
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: true,
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: safetyStock > 0, position: 'top', labels: { boxWidth: 16, padding: 12, font: { size: 11 } } },
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { boxWidth: 16, padding: 12, font: { size: 11 } }
+        },
         tooltip: {
           callbacks: {
             label: ctx => {
-              if (ctx.datasetIndex === 1) return ` Safety Stock: ${ctx.parsed.y}`;
+              if (ctx.dataset.label === 'Safety Stock') return ` Safety Stock: ${ctx.parsed.y}`;
+              if (ctx.dataset.label === 'Weekly Usage') return ` Usage: ${ctx.parsed.y}`;
               const d = stockData[ctx.dataIndex];
               const lines = [` Net On-Hand: ${ctx.parsed.y}`];
               if (d?.receipt > 0) lines.push(` PO Receipt: +${d.receipt}`);
-              lines.push(` Usage: −${d?.usage}`);
               return lines;
             }
           }
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(28,46,74,0.5)' }, ticks: { maxRotation: 45, font: { size: 10 } } },
-        y: { grid: { color: 'rgba(28,46,74,0.5)' }, title: { display: true, text: 'Units', color: '#2e4a6a' } }
+        x: {
+          grid: { color: 'rgba(28,46,74,0.5)' },
+          ticks: { maxRotation: 45, font: { size: 10 } }
+        },
+        y: {
+          grid: { color: 'rgba(28,46,74,0.5)' },
+          title: { display: true, text: 'Units', color: '#2e4a6a' },
+          min: yMin,
+        }
       }
     }
   });
