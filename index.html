@@ -1459,19 +1459,9 @@ function renderDashboard() {
     // Coverage weeks = on hand ÷ avg weekly usage
     r.coverageWeeks = r.avgWeeklyUsage > 0 ? Math.round(r.onHand / r.avgWeeklyUsage) : 99;
 
-    if (r.firstShortageWeek) {
-      const shortageDate = new Date(r.firstShortageWeek);
-      const orderByDate = new Date(shortageDate);
-      orderByDate.setDate(orderByDate.getDate() - leadDays);
-      r.orderByDate = orderByDate;
-      const daysUntilOrderBy = Math.round((orderByDate - today) / 86400000);
-      r.daysUntilOrderBy = daysUntilOrderBy;
-      if (daysUntilOrderBy < 0) r.status = 'red';
-      else if (daysUntilOrderBy <= redDays) r.status = 'red';
-      else if (daysUntilOrderBy <= yellowDays) r.status = 'yellow';
-      else r.status = 'green';
-    } else if (r.stockoutDate) {
-      const stockoutD = new Date(r.stockoutDate);
+    const refDate = r.stockoutDate || null; // use actual stockout (pb < 0) not safety stock breach
+    if (refDate) {
+      const stockoutD = new Date(refDate);
       const orderByDate = new Date(stockoutD);
       orderByDate.setDate(orderByDate.getDate() - leadDays);
       r.orderByDate = orderByDate;
@@ -1524,7 +1514,7 @@ function renderDashboard() {
     const safetyStockWeeks = parseFloat(isRow?.safety_stock_weeks || 4);
     const redDays = safetyStockWeeks / 2 * 7;
     const yellowDays = safetyStockWeeks * 7;
-    const refWeek = r.firstShortageWeek || r.stockoutDate;
+    const refWeek = r.stockoutDate; // use actual stockout only, not safety stock breach
     if (refWeek) {
       const shortageDate = new Date(refWeek);
       const orderByDate = new Date(shortageDate);
