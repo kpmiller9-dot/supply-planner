@@ -1075,7 +1075,23 @@ thead th.sortable.sort-desc .sort-icon::after { content: ' ▼'; color: var(--pw
           <!-- KPI row -->
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px" id="componentKPIs"></div>
 
-          <!-- Charts row - single combined chart -->
+          <!-- Simulator panel -->
+          <div id="simulatorPanel" style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);font-family:var(--font-mono);white-space:nowrap">⚗ Simulate PO</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text2)">Qty</label>
+              <input type="number" id="simQty" min="1" step="1" placeholder="e.g. 500"
+                style="width:90px;background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:5px 8px;color:var(--text);font-family:var(--font-mono);font-size:12px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text2)">Receipt Date</label>
+              <input type="date" id="simDate"
+                style="background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:5px 8px;color:var(--text);font-family:var(--font-mono);font-size:12px">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="runSimulation()">Run Simulation</button>
+            <button class="btn btn-ghost btn-sm" id="clearSimBtn" onclick="clearSimulation()" style="display:none">✕ Clear</button>
+            <div id="simResult" style="font-size:12px;font-family:var(--font-mono);color:var(--green);margin-left:8px"></div>
+          </div>
           <div class="card" style="margin-bottom:20px">
             <div class="card-header" style="margin-bottom:8px">
               <div>
@@ -3489,12 +3505,37 @@ class SearchSelect {
 // Global registry of SearchSelect instances
 const searchSelects = {};
 
-function redrawStockChart() {
-  const horizon = parseInt(document.getElementById('stockChartHorizon')?.value || 52);
+function runSimulation() {
+  const qty = parseFloat(document.getElementById('simQty')?.value);
+  const dateVal = document.getElementById('simDate')?.value;
+  if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+  if (!dateVal) { toast('Enter a receipt date', 'error'); return; }
+
+  const horizon = parseInt(document.getElementById('stockChartHorizon')?.value || 26);
+  drawStockChart(horizon, { qty, date: dateVal });
+
+  document.getElementById('clearSimBtn').style.display = '';
+}
+
+function clearSimulation() {
+  document.getElementById('simQty').value = '';
+  document.getElementById('simDate').value = '';
+  document.getElementById('simResult').textContent = '';
+  document.getElementById('clearSimBtn').style.display = 'none';
+  const horizon = parseInt(document.getElementById('stockChartHorizon')?.value || 26);
   drawStockChart(horizon);
 }
 
-function drawStockChart(weeks) {
+function redrawStockChart() {
+  const horizon = parseInt(document.getElementById('stockChartHorizon')?.value || 26);
+  // Preserve simulation if active
+  const qty = parseFloat(document.getElementById('simQty')?.value);
+  const dateVal = document.getElementById('simDate')?.value;
+  const simActive = qty > 0 && dateVal;
+  drawStockChart(horizon, simActive ? { qty, date: dateVal } : null);
+}
+
+function drawStockChart(weeks, simPO = null) {
   const itemId = parseInt(searchSelects['componentDetailSelect']?.getValue());
   if (!itemId) return;
 
@@ -3521,8 +3562,50 @@ function drawStockChart(weeks) {
     new Date(r.week_start_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
   );
 
-  // Cap Y minimum at -500 regardless of how negative the data goes
-  const yMin = Math.max(-500, Math.min(0, ...stockData.map(d => d.y)));
+  // Build simulated balance line if simPO provided
+  let simData = null;
+  let simResultText = '';
+  if (simPO) {
+    // Snap sim receipt date to nearest week
+    const simReceiptDate = new Date(simPO.date + 'T12:00:00');
+    const simWeekStart = new Date(simReceiptDate);
+    simWeekStart.setDate(simWeekStart.getDate() - ((simWeekStart.getDay() + 6) % 7));
+    const simWeekStr = simWeekStart.toISOString().split('T')[0];
+
+    // Rebuild balance adding the simulated receipt
+    let runningBalance = parseFloat(stockWeeks[0] ? (parseFloat(stockWeeks[0].projected_balance) + parseFloat(stockWeeks[0].gross_req)) : 0);
+    // Actually just offset the existing projected_balance by simQty from the sim week onward
+    simData = stockData.map((d, i) => {
+      const wk = stockWeeks[i]?.week_start_date;
+      const simOffset = (wk && wk >= simWeekStr) ? simPO.qty : 0;
+      return d.y + (wk >= simWeekStr ? simPO.qty : 0);
+    });
+
+    // Find stockout dates for comparison
+    const origStockout = stockData.findIndex(d => d.y < 0);
+    const simStockout = simData.findIndex(d => d < 0);
+    const origLabel = origStockout >= 0 ? stockLabels[origStockout] : null;
+    const simLabel = simStockout >= 0 ? stockLabels[simStockout] : 'No stockout in view';
+
+    if (origLabel && simStockout < 0) {
+      simResultText = `✓ Eliminates stockout (was ${origLabel})`;
+    } else if (origLabel && simStockout > origStockout) {
+      simResultText = `✓ Moves stockout from ${origLabel} → ${simLabel}`;
+    } else if (!origLabel) {
+      simResultText = `✓ No change to stockout position`;
+    } else {
+      simResultText = `Stockout: ${simLabel}`;
+    }
+    const resultEl = document.getElementById('simResult');
+    if (resultEl) resultEl.textContent = simResultText;
+  } else {
+    const resultEl = document.getElementById('simResult');
+    if (resultEl) resultEl.textContent = '';
+  }
+
+  // Account for sim data in Y scale
+  const allValues = [...stockData.map(d => d.y), ...(simData || [])];
+  const yMin = Math.max(-500, Math.min(0, ...allValues));
 
   if (detailStockChart) detailStockChart.destroy();
   const canvas = document.getElementById('stockChart');
@@ -3570,6 +3653,20 @@ function drawStockChart(weeks) {
           borderWidth: 1.5,
           borderDash: [6, 4],
           pointRadius: 0,
+          fill: false,
+          order: 0,
+        }] : []),
+        ...(simData ? [{
+          type: 'line',
+          label: `Simulated (+${simPO.qty} on ${simPO.date})`,
+          data: simData,
+          borderColor: 'rgba(34,214,138,0.9)',
+          backgroundColor: 'rgba(34,214,138,0.04)',
+          borderWidth: 2,
+          borderDash: [6, 3],
+          pointRadius: simData.map((v, i) => stockWeeks[i]?.week_start_date >= (new Date(simPO.date + 'T12:00:00').toISOString().split('T')[0].substring(0,10)) ? 3 : 0),
+          pointBackgroundColor: 'rgba(34,214,138,0.9)',
+          tension: 0,
           fill: false,
           order: 0,
         }] : [])
