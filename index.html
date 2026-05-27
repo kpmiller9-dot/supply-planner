@@ -2460,10 +2460,8 @@ async function processInventory(data, filename) {
   for (const row of data) {
     const name = String(row['Internal Name (read only)'] || row['Internal Name'] || row['name'] || '').trim();
     const stock = row['Current Stock'] || row['current_stock'] || row['qty'] || 0;
-    const status = String(row['Status'] || row['status'] || '').trim();
 
-    // Only process Active components — skip Obsolete, Service Only, Alternative, R/D Only
-    if (!name || status !== 'Active') continue;
+    if (!name) continue;
 
     const itemId = nameMap[name.toLowerCase()];
     if (!itemId) { unmatched.push(name); continue; }
