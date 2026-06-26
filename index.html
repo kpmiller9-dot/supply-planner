@@ -3741,8 +3741,7 @@ let optimizerLoaded = false;
 function loadOptimizer() {
   const frame = document.getElementById('optimizerFrame');
   if (!frame || optimizerLoaded) return;
-  const blob = new Blob([atob(OPTIMIZER_B64)], {type: 'text/html'});
-  frame.src = URL.createObjectURL(blob);
+  frame.src = 'data:text/html;charset=utf-8;base64,' + OPTIMIZER_B64;
   optimizerLoaded = true;
 }
 
